@@ -1,0 +1,91 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_APPLICATION_LOG                                       *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_APPLICATION_LOG         .
+tables: balhdri.
+*
+DATA  BEGIN OF wt_balnri OCCURS 0.
+        INCLUDE STRUCTURE balnri.
+DATA  END   OF wt_balnri.
+*
+perform write_to_application_log using 'ZZSHP' ' '.
+*
+form write_to_application_log using value(_object)
+                                    value(_subobject).
+  call function 'APPL_LOG_INIT'
+       exporting
+            object              = _object
+            subobject           = _subobject
+       exceptions
+            object_not_found    = 1
+            subobject_not_found = 2
+            others              = 3.
+  if sy-subrc = 0.
+    clear balhdri.
+    balhdri-object     = _object.
+    balhdri-subobject  = _subobject.
+    balhdri-extnumber  = 'XXX'.
+    balhdri-aldate     = sy-datum.
+    balhdri-altime     = sy-uzeit.
+    balhdri-aluser     = sy-uname.
+    balhdri-altcode    = sy-tcode.
+    balhdri-alprog     = sy-repid.
+    balhdri-aldate_del = sy-datum + 365.
+    balhdri-del_before = 'X'.
+*
+    call function 'APPL_LOG_WRITE_HEADER'
+         exporting
+              header              = balhdri
+         exceptions
+              object_not_found    = 1
+              subobject_not_found = 2
+              others              = 3.
+    if sy-subrc = 0.
+*      refresh wt_balmi.
+*      clear wt_balmi.
+*      wt_balmi-msgty  = 'I'.
+*      wt_balmi-msgid  = 'ZZ'.
+*      wt_balmi-msgno  = '941'.
+*      wt_balmi-msgv1  = zzvs3_0100-bname.
+*      wt_balmi-msgv2  = zzvs3_0100-useralias.
+*      wt_balmi-msgv3  = ' '.
+*      wt_balmi-msgv4  = ' '.
+*      append wt_balmi.
+**
+*      call function 'APPL_LOG_WRITE_MESSAGES'
+*           exporting
+*                object              = _object
+*                subobject           = _subobject
+*                update_or_insert    = 'U'
+*           tables
+*                messages            = wt_balmi
+*           exceptions
+*                object_not_found    = 1
+*                subobject_not_found = 2
+*                others              = 3.
+*      if sy-subrc = 0.
+*
+        call function 'APPL_LOG_WRITE_DB'
+             exporting
+                  object                = _object
+                  subobject             = _subobject
+                  update_task           = 'X'
+             tables
+                  object_with_lognumber = wt_balnri
+             exceptions
+                  object_not_found      = 1
+                  subobject_not_found   = 2
+                  internal_error        = 3
+                  others                = 4.
+        commit work.
+*        refresh wt_balmi.
+*        clear wt_balmi.
+*      endif.
+    endif.
+  endif.
+endform.                               " WRITE_TO_APPLICATION_LOG

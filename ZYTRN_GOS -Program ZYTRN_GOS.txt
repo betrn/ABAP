@@ -1,0 +1,37 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_GOS                                                   *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_GOS                     .
+*
+DATA: bdcdata TYPE TABLE OF bdcdata.
+DATA: itab TYPE TABLE OF bdcmsgcoll.
+DATA: w$_QMNUM like RIWO00-QMNUM.
+DATA: program LIKE sy-repid,
+      wa_bdcdata TYPE bdcdata.
+*
+      refresh bdcdata.
+      clear wa_bdcdata.
+      wa_bdcdata-program  = 'SAPLSGOSDS'.
+      wa_bdcdata-dynpro   = '2400'.
+      wa_bdcdata-dynbegin = 'X'.
+      APPEND wa_bdcdata TO bdcdata.
+*
+      CLEAR wa_bdcdata.
+      wa_bdcdata-fnam     = 'URL'.
+      wa_bdcdata-fval     = 'www.solvay.com'.
+      APPEND wa_bdcdata TO bdcdata.
+*
+break betrenault.
+      get parameter id 'IQM' field w$_QMNUM.
+      CLEAR wa_bdcdata.
+      wa_bdcdata-fnam     = 'DOCUMENT_TITLE'.
+      wa_bdcdata-fval(12) = w$_QMNUM.
+      wa_bdcdata-fval+13(10) = sy-uzeit.
+      APPEND wa_bdcdata TO bdcdata.
+*
+      CALL TRANSACTION 'ZYTRN_GOS_EXECUTE'  USING bdcdata  MODE 'E'.

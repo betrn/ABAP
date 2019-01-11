@@ -1,0 +1,29 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRNTS_LDB_SDF                                             *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRNTS_LDB_SDF               .
+tables: bkpf,
+        bseg.
+
+select-options: annee for BKPF-GJAHR.
+
+start-of-selection.
+CALL FUNCTION 'PRINT_SELECTOPTIONS'.
+
+get bkpf.
+  WRITE: / BKPF-BUKRS,
+           BKPF-BELNR,
+           BKPF-GJAHR,
+           BKPF-AEDAT,
+           BKPF-UPDDT.
+
+get bseg.
+  WRITE: /10 BSEG-BUKRS,
+             BSEG-BELNR,
+             BSEG-GJAHR,
+             BSEG-BUZEI.

@@ -1,0 +1,32 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_DEMO_LOGICAL_DATABASE                                 *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_demo_logical_database   .
+TABLES b0sg.
+NODES: kna1,
+       knb1,
+       bkpf.
+
+START-OF-SELECTION.
+  b0sg-xasgl = ' '.
+
+GET kna1.
+  uline.
+  WRITE: / kna1-kunnr,
+           kna1-name1.
+
+GET knb1.
+  WRITE: / knb1-kunnr,
+           knb1-bukrs.
+
+GET bkpf.
+  WRITE: /10 bkpf-bukrs,
+             bkpf-belnr,
+             bkpf-gjahr,
+             bkpf-blart,
+             bkpf-bldat.

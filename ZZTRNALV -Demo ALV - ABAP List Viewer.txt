@@ -1,0 +1,27 @@
+REPORT BALVSD06 NO STANDARD PAGE HEADING.
+* DB-Table
+TABLES SFLIGHT.
+* Type-pool of ALV
+TYPE-POOLS: SLIS.
+* Report Selections
+SELECT-OPTIONS CARRID FOR SFLIGHT-CARRID.
+SELECT-OPTIONS CONNID FOR SFLIGHT-CONNID.
+SELECT-OPTIONS FLDATE FOR SFLIGHT-FLDATE.
+* Data to be displayed
+DATA: GT_SFLIGHT LIKE SFLIGHT OCCURS 0 WITH HEADER LINE.
+DATA: G_REPID LIKE SY-REPID.
+*---------------------------------------------------------------------*
+* Selection
+  SELECT * FROM SFLIGHT INTO TABLE GT_SFLIGHT WHERE CARRID IN CARRID
+                                              AND   CONNID IN CONNID
+                                              AND   FLDATE IN FLDATE.
+
+  G_REPID = SY-REPID.
+* Call ABAP/4 List Viewer
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+       EXPORTING
+            I_CALLBACK_PROGRAM = G_REPID
+            I_STRUCTURE_NAME   = 'SFLIGHT'
+            I_SAVE             = 'A'      " A = All => Standard & User
+       TABLES
+            T_OUTTAB           = GT_SFLIGHT.

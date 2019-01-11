@@ -1,0 +1,21 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_TEST_PWD_SELECTION_SCR                                *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_test_pwd_selection_scr  .
+PARAMETERS: password(10) TYPE c.
+
+INITIALIZATION.
+  LOOP AT SCREEN.
+    CHECK screen-name CS 'PASSWORD' and
+          screen-input = 1.
+    screen-invisible = 1.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+START-OF-SELECTION.
+  WRITE: / password.

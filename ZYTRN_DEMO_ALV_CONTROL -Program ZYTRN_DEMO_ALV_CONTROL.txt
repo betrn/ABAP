@@ -1,0 +1,37 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_DEMO_ALV_CONTROL                                      *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_demo_alv_control        .
+*                                 /- objects declaration
+DATA: grid               TYPE REF TO cl_gui_alv_grid,
+      g_custom_container TYPE REF TO cl_gui_custom_container.
+*
+DATA: wt_countries LIKE t005 OCCURS 0.
+*
+SET SCREEN 100.
+*&---------------------------------------------------------------------*
+*&      Module  init_screen  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE init_screen OUTPUT.
+  IF g_custom_container IS INITIAL.
+*                                 /- container instanciation
+    CREATE OBJECT g_custom_container
+           EXPORTING container_name = 'CONTAINER'.
+*                                 /- grid instanciation
+    CREATE OBJECT grid
+           EXPORTING i_parent = g_custom_container.
+  ENDIF.
+*                                 /- fill countries table
+  SELECT * FROM t005 INTO TABLE wt_countries.
+*                                 /- display the table
+  CALL METHOD grid->set_table_for_first_display
+              EXPORTING i_structure_name = 'T005'
+              CHANGING it_outtab = wt_countries.
+ENDMODULE.                 " init_screen  OUTPUT

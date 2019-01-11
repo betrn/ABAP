@@ -1,0 +1,47 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_MATERIAL_CLASS                                        *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_material_class          .
+TABLES: marav.
+
+*---------------------------------------------------------------------*
+*       CLASS material DEFINITION
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+CLASS material DEFINITION.
+  PUBLIC SECTION.
+*    data: number like marav-matnr,
+    DATA: name   LIKE marav-maktx.
+    METHODS: get_name IMPORTING number LIKE marav-matnr.
+*                      exporting name   like marav-maktx.
+ENDCLASS.
+
+*---------------------------------------------------------------------*
+*       CLASS material IMPLEMENTATION
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+CLASS material IMPLEMENTATION.
+  METHOD get_name.
+    SELECT SINGLE * FROM  marav  CLIENT SPECIFIED INTO marav
+           WHERE  mandt  = sy-mandt
+           AND    matnr  = number
+           AND    spras  = sy-langu.
+    name = marav-maktx.
+  ENDMETHOD.
+ENDCLASS.
+*
+START-OF-SELECTION.
+*
+  DATA: mymaterial TYPE REF TO material.
+  CREATE OBJECT mymaterial.
+  CALL METHOD mymaterial->get_name
+       EXPORTING number = '000000000000010061'.
+*
+  WRITE: / mymaterial->name.

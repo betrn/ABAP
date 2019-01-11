@@ -1,0 +1,222 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_TIME_ZONE_CHECK                                       *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_TIME_ZONE_CHECK         .
+*REPORT  TZ_TIMECHECK                                                .
+
+constants:
+  gc_timediff   type i value 1200,   "20 minutes
+  gc_timeday    type i value 86400,  "24 hours
+  gc_true       type xflag value 'X',
+  gc_false      type xflag value ' '.
+
+data:
+  lf_timestamp      type timestamp,
+  lf_tz_utc         type timezone value 'UTC',
+  lf_tz_sys         type timezone,
+  ls_ttzcu          type ttzcu,
+  lf_date           type dats,
+  lf_time           type tims,
+  lf_result         type i,
+  lf_errors_found   type xflag.
+
+** ask the user for current local date and time.
+parameters:
+  date       type dats,
+  time       type tims,
+  tzone      type timezone default sy-zonlo.
+
+
+** print system fields
+  format intensified off.
+  write: /'Time setting in operating system'.
+  write: /'  system date.....................:', sy-datum.
+  write: /'  system time.....................:', sy-uzeit.
+  write: /'  system time zone offset to UTC..:', sy-tzone.
+  write: /'  system is currently in DST......:'.
+  if sy-dayst is initial.
+    write: 'NO'.
+  else.
+    write: 'YES'.
+  endif.
+
+** print current UTC timestamp and convert it into system
+** timezone from table TTZCU.
+
+  get time stamp field lf_timestamp.
+
+  convert time stamp lf_timestamp
+          time zone lf_tz_utc
+          into
+          date lf_date
+          time lf_time.
+
+  write: /.
+  write: /'  current UTC date................:', lf_date.
+  write: /'  current UTC time................:', lf_time.
+
+
+** print current time and user time zone.
+  write /.
+
+  write: /'  current user date...............:', sy-datlo.
+  write: /'  current user time...............:', sy-timlo.
+  write: /'  current user time zone..........:', sy-zonlo.
+
+
+** check system time zone  ...
+
+  select single * from ttzcu into ls_ttzcu.
+
+  if sy-subrc <> 0.
+    write: /'TIME ZONE CUSTOMIZING IS MISSING'.
+    write: /'use transaction STZAC to maintain'.
+    exit.
+  endif.
+  write: /.
+  write: /'  System time zone................:', ls_ttzcu-tzonesys.
+  convert time stamp lf_timestamp
+          time zone ls_ttzcu-tzonesys
+          into
+          date lf_date
+          time lf_time.
+
+  write: /'  current system date.............:', lf_date.
+  write: /'  current system time.............:', lf_time.
+
+** now check system date and system against time stamp.
+  perform in_interval
+    using lf_date lf_time sy-datum sy-uzeit
+    changing lf_result.
+  write /.
+  if lf_result = 1.
+    write: /'System time zone seems to be correct.'.
+  else.
+    format intensified on.
+    write: /'System time zone or UTC-timer is not correct.'.
+    format intensified off.
+    lf_errors_found = gc_true.
+  endif.
+
+
+
+** check the current time entered by user to verify
+** UTC timer
+  write /.
+  convert time stamp lf_timestamp
+          time zone tzone
+          into
+          date lf_date
+          time lf_time.
+
+  write: /'  current user date (entered).....:', date.
+  write: /'  current user time (entered).....:', time.
+  write: /'  current user time zone(entered).:', tzone.
+
+  write: /.
+  write: /'  current user time (conversion)..:', lf_date.
+  write: /'  current user date (conversion)..:', lf_time.
+
+  perform in_interval
+    using lf_date lf_time date time
+    changing lf_result.
+  write /.
+  if lf_result = 1.
+    write: /'The UTC-Timer seems to be ok.'.
+  else.
+    format intensified on.
+    write: /'The UTC-timer is not correct or the difference '.
+    write: /'of your entered time to current time in system is too'.
+    write: /'large.'.
+    format intensified off.
+    lf_errors_found = gc_true.
+  endif.
+
+
+** write message about next steps.
+  if lf_errors_found = gc_true.
+    format intensified on.
+    write: /.
+    write: /'Please refer to the documentation for further steps.'.
+    write: /.
+    format intensified off.
+
+  endif.
+
+  write: /'ready.'.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  compare_times
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LF_DATE  text
+*      -->P_LF_TIME  text
+*      -->P_SY_DATUM  text
+*      -->P_SY_UZEIT  text
+*      <--P_LF_RESULT  text
+*----------------------------------------------------------------------*
+FORM in_interval USING    P_DATE
+                          P_TIME
+                          P_date_c
+                          P_time_c
+                 CHANGING P_RESULT.
+data:
+      lf_itime1      type i,
+      lf_itime2      type i,
+      lf_idate1      type i,
+      lf_idate2      type i,
+      lf_idatec      type i,
+      lf_itimec      type i.
+
+** compute boundaries for interval.
+  lf_itime1 = p_time.
+  lf_idate1 = p_date.
+
+  lf_itime2 = lf_itime1 + gc_timediff.
+  lf_idate2 = lf_idate1.
+  if lf_itime2 > gc_timeday.
+    lf_itime2 = lf_itime2 - gc_timeday.
+    lf_idate2 = lf_idate2 + 1.
+  endif.
+
+  lf_itime1 = lf_itime1 - gc_timediff.
+  if lf_itime1 < 0 .
+    lf_itime1 = lf_itime1 + gc_timeday.
+    lf_idate1 = lf_idate1 - 1.
+    if lf_idate1 < 0.
+      lf_idate1 = 0.
+    endif.
+  endif.
+
+** compare
+  lf_idatec = p_date_c.
+  lf_itimec = p_time_c.
+
+
+  if lf_idatec < lf_idate1 or
+     lf_idatec > lf_idate2.
+    p_result = 0.
+    exit.
+  endif.
+
+  if lf_idatec = lf_idate1 and
+     lf_itimec < lf_itime1.
+    p_result = 0.
+    exit.
+  endif.
+
+  if lf_idatec = lf_idate2 and
+     lf_itimec > lf_itime2.
+    p_result = 0.
+    exit.
+  endif.
+
+  p_result = 1.
+ENDFORM.                    " compare_times

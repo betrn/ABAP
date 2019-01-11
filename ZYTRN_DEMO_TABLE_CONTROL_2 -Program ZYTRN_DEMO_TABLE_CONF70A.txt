@@ -1,0 +1,43 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_DEMO_TABLE_CONTROL_2                                  *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_demo_table_control_2    .
+TABLES: t005.
+CONTROLS: cg_t005 TYPE TABLEVIEW USING SCREEN 200.
+*
+DATA: wt_t005 LIKE t005 OCCURS 0 WITH HEADER LINE.
+*
+REFRESH wt_t005 FROM TABLE t005.
+*CALL SCREEN 100.
+call screen 200.
+*&---------------------------------------------------------------------*
+*&      Module  display_t005  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE display_t005 OUTPUT.
+  MOVE wt_t005 TO t005.
+ENDMODULE.                 " display_t005  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  set_tc_attributes  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE set_tc_attributes OUTPUT.
+  cg_t005-fixed_cols    = 1.            " # of immovable cols (left)
+* cG_T005-LINES         = 15.           " # of displayable rows (lines)
+* cG_T005-TOP_LINE      = 1.            " 1st table row displayed
+* cG_T005-CURRENT_LINE  =               " row currently processed (loop)
+  cg_t005-left_col      = 3.            " first scrollable column
+  cg_t005-line_sel_mode = 2.            " enable line selection 0,1,2
+  cg_t005-col_sel_mode  = 2.            " enable column selection 0,1,2
+  cg_t005-line_selector = 'X'.          " line selection indicator 'X'
+  cg_t005-h_grid        = 'X'.          " horizontal gridlines
+  cg_t005-v_grid        = 'X'.          " vertical gridlines
+* cG_T001-COLS          = WG_COLS.
+ENDMODULE.                 " set_tc_attributes  OUTPUT

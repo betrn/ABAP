@@ -1,0 +1,147 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_IXOS_SECKEY                                           *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_IXOS_SECKEY             .
+*
+tables: sapb,
+        toa01,
+        SSFPARMS.
+data: HTTP_SERV TYPE  CREP_HTTP-HTTP_SERV,
+      VERSION   TYPE  CREP_HTTP-VERSION.
+
+
+*COMMAND             = INPUT-COMMAND
+*CONTREP             = CONTREP
+*DOCID               = INPUT-DOCID
+*COMPID              = INPUT-COMPID
+*PATTERN             = INPUT-PATTERN
+*NUMRESULTS          = NUMRESULTS
+*CASESENSIT          = CASESENSIT
+*FROMOFFSET          = FROMOFFSET
+*TOOFFSET            = TOOFFSET
+*ACCESSMODE          = INPUT-ACCESSMODE
+*RESULTAS            = INPUT-RESULTAS
+*DURATION            = DURATION
+*SIGNATURE           = SIGNATURE
+*CERTIFICATE         = CERTIFICATE
+*DOCPROT             = INPUT-DOCPROT
+*USE_LOCATION        = USE_LOCATION
+*
+
+
+CALL FUNCTION 'SCMS_URL_GENERATE'
+  EXPORTING
+*   MANDT                     = SY-MANDT
+    command                   = 'get'
+*   OPERATION                 =
+*   EXTENTION                 =
+   CONTREP                   = 'SD'
+   HTTP_SERV                 = 'sx2ixos.ibm.be.solvay.com:8080'
+   HTTP_SCRPT                = 'archive'
+   VERSION                   = '0045'
+*   DOCID                     = 'aaabrw5am43d31c6oueagvuw6n52o'
+   DOCID                     = 'aaabrw5am43d31c6oueagvuw6n52oMTA0000001'
+*  DOCID                     = 'aazeb6nlswmt2w5qfaknalew6n52q'
+**   COMPID                    = '0000001'
+*   PATTERN                   =
+*   NUMRESULTS                = -1
+*   CASESENSIT                =
+*   FROMOFFSET                = 0
+*   TOOFFSET                  = -1
+   ACCESSMODE                = 'r'
+*   RESULTAS                  =
+*   DURATION                  = '020000'
+*   SIGNATURE                 = ' '
+  SIGNATURE                 = 'X '
+*   CERTIFICATE               = ' '
+*   DOCPROT                   =
+  SECURITY                  = ' '
+*   USE_LOCATION              = 'A'
+*   LOCATION                  = ' '
+*   CACHE_TO_USE              =
+*   NO_CACHE                  = ' '
+*   EXPORT_ALL                = ' '
+  IMPORTING
+    ABSOLUTE_URI              = SAPB-URI
+    EOSTR_SIGNED_DATA_L       = SSFPARMS-SIGDATALEN
+*   CACHE                     =
+*   HTTP_URI                  =
+*   HTTPS_URI                 =
+* TABLES
+*   ATTR_PATTERN              =
+*   IT_OSTR_SIGNED_DATA       =
+* EXCEPTIONS
+*   ERROR_PARAMETER           = 1
+*   ERROR_SIGNATURE           = 2
+*   OTHERS                    = 3
+          .
+IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+
+write: / SAPB-URI(100),
+       / SAPB-URI+100(100),
+       / SAPB-URI+200(100),
+       / SAPB-URI+300(100),
+       / SAPB-URI+400(100),
+       / SAPB-URI+500(100),
+       / SAPB-URI+600(100),
+       / SAPB-URI+700(100).
+
+*uline.
+clear toa01.
+toa01-archiv_id  = 'F2'.
+toa01-arc_doc_id = 'acbnczyvkwxubddbmurfdeuw6n52qMTA0000049'.
+HTTP_SERV        = 'px2ixos.ibm.be.solvay.com:8080'.
+VERSION          = '0045'.
+
+
+CALL FUNCTION 'Z_ZV_IXOS_URL_GENERATE'
+  destination 'PF1_020_RFC_DESTINATION'
+  EXPORTING
+    archiv_id          = toa01-archiv_id
+    arc_doc_id         = toa01-arc_doc_id
+    http_serv          = http_serv
+    version            = version
+  IMPORTING
+    ABSOLUTE_URI       = SAPB-URI
+          .
+
+** px2ixos.ibm.be.solvay.com
+** 150.251.125.184
+** archive.solvay.com
+*TOA01-SAP_OBJECT = 'VBRK'.
+**TOA01-OBJECT_ID  = '0090089635                    0000225499'.
+*TOA01-OBJECT_ID  = '0090327343                    0001025461'.
+**HTTP_SERV        = 'px2ixos.ibm.be.solvay.com:8080'.
+*HTTP_SERV        = 'archive.solvay.com:8080'.
+*
+*VERSION          = '0045'.
+*
+*CALL FUNCTION 'Z_ZV_IXOS_URL_GENERATE'
+*  destination 'PF1_020_RFC_DESTINATION'
+*  EXPORTING
+*    sap_object         = TOA01-SAP_OBJECT
+*    object_id          = TOA01-OBJECT_ID
+*    http_serv          = http_serv
+*    version            = version
+*  IMPORTING
+*    ABSOLUTE_URI       = SAPB-URI
+*          .
+uline.
+
+write: / SAPB-URI(100),
+       / SAPB-URI+100(100),
+       / SAPB-URI+200(100),
+       / SAPB-URI+300(100),
+       / SAPB-URI+400(100),
+       / SAPB-URI+500(100),
+       / SAPB-URI+600(100),
+       / SAPB-URI+700(100),
+       / SAPB-URI+800(100).

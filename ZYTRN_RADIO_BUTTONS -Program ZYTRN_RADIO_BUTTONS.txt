@@ -1,0 +1,38 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_RADIO_BUTTONS                                         *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_RADIO_BUTTONS           .
+PARAMETERS :
+  Oui RADIOBUTTON GROUP g1 DEFAULT 'X' user-command ABCD,
+  non RADIOBUTTON GROUP g1.
+
+SELECTION-SCREEN BEGIN OF SCREEN 123 AS WINDOW TITLE TEXT-456.
+  SELECTION-SCREEN BEGIN OF BLOCK BL1 WITH FRAME TITLE TEXT-BL1
+                                      NO INTERVALS.
+    SELECT-OPTIONS SEL1 FOR SY-SUBRC.
+    PARAMETERS     PAR1 LIKE SPFLI-CARRID.
+    SELECTION-SCREEN COMMENT /10(20) TEXT-COM.
+  SELECTION-SCREEN END OF BLOCK BL1.
+SELECTION-SCREEN END OF SCREEN 123.
+
+SELECTION-SCREEN BEGIN OF SCREEN 456 AS WINDOW TITLE TEXT-456.
+  SELECTION-SCREEN BEGIN OF BLOCK BL2 WITH FRAME TITLE TEXT-BL1
+                                      NO INTERVALS.
+       PARAMETERS     COUNTRY LIKE T005T-LAND1.
+    SELECTION-SCREEN END OF BLOCK BL2.
+SELECTION-SCREEN END OF SCREEN 456.
+
+*----------------------------------------------------------------------*
+ AT SELECTION-SCREEN.
+*----------------------------------------------------------------------*
+  IF oui = 'X'.
+    CALL SELECTION-SCREEN 123 STARTING AT 20 5.
+  ENDIF.
+  IF non = 'X'.
+    CALL SELECTION-SCREEN 456 STARTING AT 20 5.
+  ENDIF.

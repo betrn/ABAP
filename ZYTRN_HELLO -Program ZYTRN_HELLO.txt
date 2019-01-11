@@ -1,0 +1,38 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_HELLO                                                 *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_hello                   .
+TABLES: t001,
+        t005t.
+
+*PARAMETERS: pays LIKE t001-land1.
+select-options: pays for t001-land1.
+parameters: x(5).
+
+SELECT        * FROM  t001
+       WHERE  land1  in pays.
+
+  SELECT SINGLE * FROM  t005t
+         WHERE  spras  = sy-langu
+         AND    land1  = t001-land1.
+
+  WRITE: / t001-bukrs COLOR COL_KEY,
+           t001-butxt,
+           t001-ort01,
+           t001-land1,
+           t005t-landx.
+
+ENDSELECT.
+*&---------------------------------------------------------------------*
+*&      Module  PBO_REPORT  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module PBO_REP output.
+  t001-land1 = 'dddddd'.
+endmodule.                 " PBO_REPORT  OUTPUT

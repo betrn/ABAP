@@ -1,0 +1,81 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_FIELD_TRANSPORT                                       *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+report  zytrn_field_transport         .
+tables: t005.
+*                                 /- for Mass Data Interface via RFC
+include avwrtcxm.
+data:       wn_ligne type i,
+            l type i,
+            w$_fldnm(8),
+            ok_code like sy-ucomm,
+            i(3) type c.
+
+data: begin of wt_pays occurs 0.
+        include structure t005t.
+data: end of wt_pays.
+data: begin of wt_value occurs 0,
+        value like t005-land1,
+      end of wt_value.
+
+call screen 100.
+*&---------------------------------------------------------------------*
+*&      Module  field_transport  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module field_transport output.
+  wn_ligne = 1.
+  select        * from  t005 client specified up to 15 rows
+         where  mandt  = sy-mandt.
+    write wn_ligne to i.
+    concatenate 'LAND_' i into w$_fldnm.
+    condense w$_fldnm no-gaps.
+    field-set w$_fldnm 1 t005-land1.
+    field-set 'LAND1' wn_ligne t005-land1.
+    add 1 to wn_ligne.
+  endselect.
+  subtract 1 from wn_ligne.
+  write wn_ligne to i.
+  field-set 'NOMBRE_ITEM' 1 i.
+  field-transport.
+endmodule.                 " field_transport  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  field_get  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module field_get input.
+refresh wt_pays.
+wn_ligne = 1.
+do.
+  clear wt_pays.
+  field-get 'LAND1' wn_ligne wt_value l.
+  if sy-subrc <> 0.
+    exit.
+  endif.
+  read table wt_value index 1.
+  wt_pays-land1 = wt_value.
+  append wt_pays.
+  add 1 to wn_ligne.
+enddo.
+leave to screen 200.
+endmodule.                 " field_get  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  field_transport_200  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module field_transport_200 output.
+  wn_ligne = 1.
+  loop at wt_pays.
+    field-set 'PAYS' wn_ligne wt_pays-land1.
+    add 1 to wn_ligne.
+  endloop.
+  field-transport.
+endmodule.                 " field_transport_200  OUTPUT

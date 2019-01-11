@@ -1,0 +1,56 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_DEMO_TABSTRIP                                         *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_DEMO_TABSTRIP           .
+*
+CONTROLS: ONGLET TYPE TABSTRIP.
+*
+DATA: OK_CODE LIKE SY-UCOMM,
+      PROGRAM LIKE SY-CPROG,
+      DYNPR   LIKE SY-DYNNR.
+*
+*CALL SCREEN 100.
+call screen 200.
+*&---------------------------------------------------------------------*
+*&      Module  INIT_100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE INIT_100 OUTPUT.
+  CASE OK_CODE.
+    WHEN 'NAME' OR SPACE.
+      PROGRAM = 'ZYTRN_DEMO_TABSTRIP'.
+      DYNPR  = '0101'.
+      ONGLET-ACTIVETAB = 'NAME'.
+    WHEN 'ADDR'.
+      PROGRAM = 'ZYTRN_DEMO_TABSTRIP'.
+      DYNPR  = '0102'.
+      ONGLET-ACTIVETAB = OK_CODE.
+    WHEN 'EXIT'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+ENDMODULE.                             " INIT_100  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0200  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module STATUS_0200 output.
+  CASE OK_CODE.
+    WHEN 'NOM' OR SPACE.
+      PROGRAM = 'ZYTRN_DEMO_TABSTRIP'.
+      DYNPR  = '0101'.
+      ONGLET-ACTIVETAB = 'NOM'.
+    WHEN 'ADDR'.
+      PROGRAM = 'ZYTRN_DEMO_TABSTRIP'.
+      DYNPR  = '0102'.
+      ONGLET-ACTIVETAB = OK_CODE.
+    WHEN 'EXIT'.
+      LEAVE TO SCREEN 0.
+  ENDCASE.
+endmodule.                 " STATUS_0200  OUTPUT

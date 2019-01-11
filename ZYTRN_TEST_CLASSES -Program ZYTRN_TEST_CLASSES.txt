@@ -1,0 +1,92 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_TEST_CLASSES                                          *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*& Th. Renault (Information Resources SA)                              *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_test_classes            .
+
+TABLES: kna1, zzvsup.
+
+*---------------------------------------------------------------------*
+*       CLASS CUSTOMER DEFINITION
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+CLASS customer DEFINITION.
+  PUBLIC SECTION.
+    DATA: wg_kna1 LIKE kna1.
+    METHODS: display,
+             read    IMPORTING value(kunnr) LIKE kna1-kunnr.
+ENDCLASS.
+
+*---------------------------------------------------------------------*
+*       CLASS CUSTOMER IMPLEMENTATION
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+CLASS customer IMPLEMENTATION.
+  METHOD display.
+    WRITE: / 'Name',    wg_kna1-name1,
+             'City',    wg_kna1-ort01,
+             'Country', wg_kna1-land1.
+  ENDMETHOD.
+  METHOD read.
+    SELECT SINGLE * FROM  kna1 CLIENT SPECIFIED INTO wg_kna1
+           WHERE  mandt  = sy-mandt
+           AND    kunnr  = kunnr.
+  ENDMETHOD.
+
+ENDCLASS.
+
+*---------------------------------------------------------------------*
+*       CLASS InternetUser DEFINITION
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+CLASS internetuser DEFINITION.
+  PUBLIC SECTION.
+    DATA: wg_zzvsup LIKE zzvsup,
+          wt_zzvsup TYPE TABLE OF zzvsup.
+    METHODS: read    IMPORTING value(bname) LIKE zzvsup-bname.
+ENDCLASS.
+
+*---------------------------------------------------------------------*
+*       CLASS InternetUser IMPLEMENTATION
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+CLASS internetuser IMPLEMENTATION.
+  METHOD read.
+    REFRESH wt_zzvsup.
+    SELECT        * FROM  zzvsup CLIENT SPECIFIED INTO TABLE wt_zzvsup
+           WHERE  mandt  = sy-mandt
+           AND    bname  = bname.
+  ENDMETHOD.
+ENDCLASS.
+
+DATA: myinternetuser TYPE REF TO internetuser,
+      mysoldtoparty  TYPE REF TO customer,
+      myshiptoparty  TYPE REF TO customer.
+*
+*-----------------
+START-OF-SELECTION.
+*-----------------
+*
+  CREATE OBJECT: myinternetuser,
+                 mysoldtoparty,
+                 myshiptoparty.
+*
+  CALL METHOD myinternetuser->read EXPORTING bname = '7E2E725BB41'.
+*
+  LOOP AT myinternetuser->wt_zzvsup INTO zzvsup.
+    CALL METHOD mysoldtoparty->read EXPORTING kunnr = zzvsup-kund1.
+    CALL METHOD mysoldtoparty->display.
+
+    WRITE: / mysoldtoparty->wg_kna1-pstlz.
+
+    CALL METHOD myshiptoparty->read EXPORTING kunnr = zzvsup-kund2.
+    CALL METHOD myshiptoparty->display.
+  ENDLOOP.

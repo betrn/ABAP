@@ -1,0 +1,327 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_ITS_UPLOAD                                            *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+report  zytrn_its_upload              .
+*
+tables: rsmrgstr,
+        zytrn_drop_box.
+*
+data: ok_code      like sy-ucomm,
+      title(80),
+      w$_index     like sy-index,
+      wl_fpath(80) value '/var/extract/DE2/',
+      wn_ligne     type i,
+      wb_ligne     type i,
+      wl_date(10),
+      wl_time(8),
+      wl_fname(255),
+      wl_patte(255),
+      wl_data(8000),
+      w$_filel     type i.
+*
+data: begin of wt_data occurs 0,
+        recor(8000),
+      end of wt_data.
+*
+data: begin of wt_split occurs 0,
+        node(80),
+      end of wt_split.
+*
+data: wt_mimet like savwmpmime     occurs 0 with header line.
+data: wt_flsti like zytrn_drop_box occurs 0 with header line.
+data: wt_flsto like zytrn_drop_box occurs 0 with header line.
+data: wb_bytes type i.
+data: wc_len type c.
+*
+include avwrtcxm.
+*
+call screen 100.
+*
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module user_command_0100 input.
+  case ok_code.
+    when 'DISPOUT'.
+      clear wb_bytes.
+      clear wl_data.
+*                                 /- read the file from app. server
+*                                    and put it in an internal table
+*perform add using 'BEGIN:VCALENDAR'.
+*perform add using 'PRODID:-//Microsoft Corporation//Outlook 10.0'.
+*perform add using 'MIMEDIR//EN'.
+*perform add using 'VERSION:2.0'.
+*perform add using 'METHOD:PUBLISH'.
+*perform add using 'BEGIN:VEVENT'.
+*perform add using 'ORGANIZER:MAILTO:Thierry.Renault@solvay.com'.
+*perform add using 'DTSTART:20031203T080000Z'.
+*perform add using 'DTEND:20031203T083000Z'.
+*perform add using 'TRANSP:OPAQUE'.
+*perform add using 'SEQUENCE:0'.
+*perform add using 'DTSTAMP:20031203T152712Z'.
+*perform add using 'SUMMARY:TEST trn'.
+*perform add using 'PRIORITY:5'.
+*perform add using 'CLASS:PUBLIC'.
+*perform add using 'BEGIN:VALARM'.
+*perform add using 'TRIGGER:-PT15M'.
+*perform add using 'ACTION:DISPLAY'.
+*perform add using 'DESCRIPTION:Reminder'.
+*perform add using 'END:VALARM'.
+*perform add using 'END:VEVENT'.
+*perform add using 'END:VCALENDAR'.
+
+*perform add using 'BEGIN:VCALENDAR'.
+*perform add using 'VERSION:1.0'.
+*perform add using 'BEGIN:VEVENT'.
+*perform add using 'DTSTART:20031205T120000Z'.
+*perform add using 'DTEND:20031205T230000Z'.
+*perform add using 'SUMMARY:Test ICalendar'.
+*perform add using 'LOCATION:xl'.
+*perform add using 'DESCRIPTION:test icalendar in xl'.
+*perform add using 'PRIORITY:3'.
+*perform add using 'END:VEVENT'.
+*perform add using 'END:VCALENDAR'.
+
+perform add using 'BEGIN:VCALENDAR'.
+perform add using
+ 'PRODID:-//Microsoft Corporation//Outlook 10.0 MIMEDIR//EN'.
+perform add using 'VERSION:2.0'.
+perform add using 'METHOD:PUBLISH'.
+perform add using 'BEGIN:VEVENT'.
+perform add using 'ORGANIZER:MAILTO:Michael.Opoczynski-Ex@solvay.com'.
+perform add using 'DTSTART;VALUE=DATE:20031208'.
+perform add using 'DTEND;VALUE=DATE:20031210'.
+perform add using 'TRANSP:OPAQUE'.
+perform add using 'SEQUENCE:0'.
+perform add using 'UID:'.
+perform add using 'DTSTAMP:20031205T092443Z'.
+perform add using 'SUMMARY:Mission to Rosignano'.
+perform add using 'PRIORITY:5'.
+perform add using 'CLASS:PUBLIC'.
+perform add using 'END:VEVENT'.
+perform add using 'END:VCALENDAR'.
+
+
+refresh wt_data.
+wt_data-recor = wl_data.
+append wt_data.
+      perform aleweb_download tables wt_data using
+      wb_bytes 'text/calendar' wt_flsto-contfname .
+    when others.
+      set screen 100.
+  endcase.
+endmodule.                 " USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module status_0100 output.
+endmodule.                 " STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Form  ALEWEB_DOWNLOAD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+form aleweb_download tables data_tab using data_len mime_type fname.
+*"----------------------------------------------------------------------
+*"*"Lokale Schnittstelle:
+*"  IMPORTING
+*"     VALUE(DATA_LEN)
+*"     VALUE(MIME_TYPE)
+*"  TABLES
+*"      DATA_TAB
+*"  EXCEPTIONS
+*"      ITS_NOT_AVAILABLE
+*"----------------------------------------------------------------------
+
+  field-symbols: <f>, <c1>, <c2>.
+
+  constants:
+     content_type(20) value 'Content-Type:'.
+  data: content_disposition(600).
+
+  data:
+     begin of crlf, cr type x value '0D', lf type x value '0A',
+     end of crlf.
+
+  data: max_len type i value 8192.
+  data: cdata_len(10).
+
+  data: begin of agate occurs 0.
+  data:    data(8192).
+  data: end of agate.
+
+  data: write_ptr type i.
+  data: write_len type i.
+  data: c_len type i.
+  data: c1_len type i, c2_len type i.
+  data: end_len type i.
+
+  field-symbols: <fs_to>   type c,
+                 <fs_from> type c.
+
+
+* --------------------------------------------------------------------
+* Check, if ITS is available.
+* --------------------------------------------------------------------
+  call function 'ITS_PING'
+       exceptions
+            its_not_available = 1
+            others            = 2.
+
+  if sy-subrc <> 0.
+    raise its_not_available.
+  endif.
+* --------------------------------------------------------------------
+*break-point.
+      refresh wt_split.
+      split fname at '.' into table wt_split.
+      describe table wt_split lines wb_ligne.
+      read table wt_split index wb_ligne.
+*
+  write_ptr = 0.
+  write_len = 0.
+
+write content_type to agate-data+write_ptr.
+* WRITE_PTR = STRLEN( CONTENT_TYPE ) + 1.
+  write_ptr = write_ptr + strlen( content_type ) + 1.
+
+  describe field mime_type length c_len.
+  write mime_type to agate+write_ptr.
+  write_ptr = write_ptr + c_len.
+
+   write crlf to agate-data+write_ptr.
+   write_ptr = write_ptr + 2.
+
+
+  move 'Content-Disposition: attachment; filename="Solvay.ics"'
+              to content_disposition.
+
+  write content_disposition to agate-data+write_ptr.
+  write_ptr = write_ptr + strlen( content_disposition ) + 1.
+
+  write crlf to agate-data+write_ptr.
+  write_ptr = write_ptr + 2.
+*  WRITE CRLF TO AGATE-DATA+WRITE_PTR.
+*  WRITE_PTR = WRITE_PTR + 2.
+
+*  write content_type to agate-data+write_ptr.
+** WRITE_PTR = STRLEN( CONTENT_TYPE ) + 1.
+*  write_ptr = write_ptr + strlen( content_type ) + 1.
+*
+*  describe field mime_type length c_len.
+*  write mime_type to agate+write_ptr.
+*  write_ptr = write_ptr + c_len.
+*
+*  write crlf to agate-data+write_ptr.
+*  write_ptr = write_ptr + 2.
+  write crlf to agate-data+write_ptr.
+  write_ptr = write_ptr + 2.
+
+  data_len = data_len + write_ptr.     " Update with header size.
+
+  loop at data_tab.
+
+    assign data_tab   to <fs_from> casting.
+    assign agate-data to <fs_to>   casting.
+
+    do.
+
+      assign component sy-index of structure data_tab to <f>.
+      if sy-subrc <> 0.
+        if sy-index > 1.
+           exit. " System problem
+        else.
+           assign data_tab to <f>.
+        endif.
+      endif.
+
+      describe field <f> length c_len.
+      end_len = write_ptr + c_len.
+
+      if end_len > max_len.
+
+*       Break up into components
+        c1_len = max_len - write_ptr.
+        c2_len = c_len - c1_len.
+
+        move <fs_from>+0(c1_len) to <fs_to>+write_ptr.
+        append agate.
+
+        assign agate-data to <fs_to> casting.
+
+        move <fs_from>+c1_len(c2_len) to <fs_to>. "AGATE-DATA.
+
+        write_ptr = c2_len.
+
+      else.
+
+        write <fs_from>+0(c_len) to <fs_to>+write_ptr.
+        write_ptr = write_ptr + c_len.
+
+        if write_ptr = max_len.
+          append agate.
+          write_ptr = 0.
+          assign agate-data to <fs_to> casting.
+        endif.
+
+      endif.
+
+    enddo.
+
+  endloop.
+
+  if write_ptr <> 0.
+    append agate.
+  endif.
+
+  move data_len to cdata_len.          " Convert to CHAR
+  condense cdata_len no-gaps.
+
+  call function 'ALEWEB_DOWNLOAD'
+       destination 'SAPGUI'
+       exporting length  = cdata_len
+       tables    rawdata = agate
+                 exceptions system_failure
+                            communication_failure.
+
+endform.                    " ALEWEB_DOWNLOAD
+*&---------------------------------------------------------------------*
+*&      Form  add
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_0111   text
+*----------------------------------------------------------------------*
+form add using    value(p_data).
+  data: begin of crlf,
+          cr(1) type x value '0D',
+          lf(1) type x value '0A',
+        end of crlf.
+  data: begin of zero,
+          zr(1) type x value '00',
+        end of zero.
+  data: wb_length type i.
+*
+      condense: p_data.
+      clear wt_data with null.
+      wb_length = strlen( p_data ).
+      write p_data to wt_data-recor(wb_length).
+      condense wt_data-recor.
+      write crlf to wt_data-recor+wb_length(2).
+
+      append wt_data.
+      concatenate wl_data p_data crlf into wl_data.
+      wb_bytes = wb_bytes + wb_length + 2.
+endform.                    " add

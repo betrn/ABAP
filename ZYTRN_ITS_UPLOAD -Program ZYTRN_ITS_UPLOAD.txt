@@ -1,0 +1,345 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_ITS_UPLOAD                                            *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_ITS_UPLOAD              .
+*
+tables: RSMRGSTR,
+        ZYTRN_DROP_BOX.
+*
+data: ok_code      like sy-ucomm,
+      title(80),
+      w$_index     like sy-index,
+      wl_fpath(80) value '/var/extract/DE2/',
+      wn_ligne     type i,
+      wb_ligne     type i,
+      wl_date(10),
+      wl_time(8),
+      wl_fname(255),
+      wl_patte(255),
+      w$_filel     type i.
+*
+data: begin of wt_data occurs 0,
+        recor(200),
+      end of wt_data.
+*
+data: begin of wt_split occurs 0,
+        node(80),
+      end of wt_split.
+*
+data: wt_mimet like savwmpmime     occurs 0 with header line.
+data: wt_flstI like ZYTRN_DROP_BOX occurs 0 with header line.
+data: wt_flstO like ZYTRN_DROP_BOX occurs 0 with header line.
+*
+include avwrtcxm.
+*
+call screen 100.
+*
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module USER_COMMAND_0100 input.
+  case ok_code.
+    when 'UPLO'.
+*                                 /- upload the file
+      mime-upload 1 wt_data w$_filel.
+*                                 /- get file info such as mime-type
+      mime-info wt_mimet.
+      clear wt_mimet.
+      read table wt_mimet index 1.
+*      break-point.
+      refresh wt_split.
+      split wt_mimet-contfname at '\' into table wt_split.
+      describe table wt_split lines wb_ligne.
+      read table wt_split index wb_ligne.
+      concatenate wl_fpath sy-uname '_' wt_split into wl_fname.
+*                                 /- write the uploaded file to a
+*                                    directory on the R/3 application
+*                                    server
+      open dataset wl_fname for output in binary mode.
+        loop at wt_data.
+          transfer wt_data to wl_fname.
+        endloop.
+      close dataset wl_fname.
+      clear ZYTRN_DROP_BOX.
+      move-corresponding wt_mimet to ZYTRN_DROP_BOX.
+      ZYTRN_DROP_BOX-contlength = w$_filel.
+      ZYTRN_DROP_BOX-uname = sy-uname.
+      zytrn_drop_box-fname = wl_fname.
+      zytrn_drop_box-title = title.
+      concatenate sy-datum sy-uzeit into ZYTRN_DROP_BOX-timestamp.
+      insert ZYTRN_DROP_BOX.
+      set screen 100.
+    when 'DISPOUT'.
+*                                 /- read the file from app. server
+*                                    and put it in an internal table
+      clear wt_flstO.
+      read table wt_flstO index w$_index.
+      refresh wt_data.
+      open dataset wt_flstO-fname for input in binary mode.
+      do.
+        read dataset wt_flstO-fname into wt_data.
+        append wt_data.
+        if sy-subrc <> 0.
+          exit.
+        endif.
+      enddo.
+      close dataset wt_flstO-fname.
+*     clear ok_code.
+      perform ALEWEB_DOWNLOAD tables wt_data using
+      wt_flstO-contlength wt_flstO-conttype wt_flstO-contfname .
+*     set screen 200.
+    when 'DISPIN'.
+*                                 /- read the file from app. server
+*                                    and put it in an internal table
+      clear wt_flstI.
+      read table wt_flstI index w$_index.
+      refresh wt_data.
+      open dataset wt_flstI-fname for input in binary mode.
+      do.
+        read dataset wt_flstI-fname into wt_data.
+        append wt_data.
+        if sy-subrc <> 0.
+          exit.
+        endif.
+      enddo.
+      close dataset wt_flstI-fname.
+*     clear ok_code.
+      perform ALEWEB_DOWNLOAD tables wt_data using
+      wt_flstI-contlength wt_flstI-conttype wt_flstI-contfname .
+*     set screen 200.
+
+    when others.
+      set screen 100.
+  endcase.
+endmodule.                 " USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module STATUS_0100 output.
+  refresh wt_flstI.
+  SELECT        * FROM  zytrn_drop_box CLIENT SPECIFIED
+      into table wt_flstI
+         WHERE  mandt  = sy-mandt
+         AND    uname  = sy-uname
+         AND    inoutdoc = 'I'.
+  WN_LIGNE = 1.
+  loop at wt_flstI.
+    if wt_flstI-title is initial.
+      wt_flstI-title = wt_flstI-fname.
+    endif.
+    FIELD-SET 'FILENAMEIN' WN_LIGNE wt_flstI-fname.
+    FIELD-SET 'TITLEIN'    WN_LIGNE wt_flstI-title.
+    perform split_timestamp using wt_flstI-timestamp.
+    FIELD-SET 'DATEIN'     WN_LIGNE wl_date.
+    FIELD-SET 'TIMEIN'     WN_LIGNE wl_time.
+    ADD 1 TO WN_LIGNE.
+  ENDloop.
+*
+  refresh wt_flstO.
+  SELECT        * FROM  zytrn_drop_box CLIENT SPECIFIED
+      into table wt_flstO
+         WHERE  mandt  = sy-mandt
+         AND    uname  = sy-uname
+         AND    inoutdoc = ' '.
+  WN_LIGNE = 1.
+  loop at wt_flstO.
+    if wt_flstO-title is initial.
+      wt_flstO-title = wt_flstO-fname.
+    endif.
+    FIELD-SET 'FILENAMEOUT' WN_LIGNE wt_flstO-fname.
+    FIELD-SET 'TITLEOUT'    WN_LIGNE wt_flstO-title.
+    perform split_timestamp using wt_flstO-timestamp.
+    FIELD-SET 'DATEOUT'     WN_LIGNE wl_date.
+    FIELD-SET 'TIMEOUT'     WN_LIGNE wl_time.
+    ADD 1 TO WN_LIGNE.
+  ENDloop.
+*
+  FIELD-TRANSPORT.
+endmodule.                 " STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Form  ALEWEB_DOWNLOAD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+form ALEWEB_DOWNLOAD tables DATA_TAB using DATA_LEN MIME_TYPE FNAME.
+*"----------------------------------------------------------------------
+*"*"Lokale Schnittstelle:
+*"  IMPORTING
+*"     VALUE(DATA_LEN)
+*"     VALUE(MIME_TYPE)
+*"  TABLES
+*"      DATA_TAB
+*"  EXCEPTIONS
+*"      ITS_NOT_AVAILABLE
+*"----------------------------------------------------------------------
+
+  FIELD-SYMBOLS: <F>, <C1>, <C2>.
+
+  CONSTANTS:
+     CONTENT_TYPE(20) VALUE 'Content-Type:'.
+  DATA: CONTENT_DISPOSITION(600).
+
+  DATA:
+     BEGIN OF CRLF, CR TYPE X VALUE '0D', LF TYPE X VALUE '0A',
+     END OF CRLF.
+
+  DATA: MAX_LEN TYPE I VALUE 8192.
+  DATA: CDATA_LEN(10).
+
+  DATA: BEGIN OF AGATE OCCURS 0.
+  DATA:    DATA(8192).
+  DATA: END OF AGATE.
+
+  DATA: WRITE_PTR TYPE I.
+  DATA: WRITE_LEN TYPE I.
+  DATA: C_LEN TYPE I.
+  DATA: C1_LEN TYPE I, C2_LEN TYPE I.
+  DATA: END_LEN TYPE I.
+
+  FIELD-SYMBOLS: <FS_TO>   TYPE C,
+                 <FS_FROM> TYPE C.
+
+
+* --------------------------------------------------------------------
+* Check, if ITS is available.
+* --------------------------------------------------------------------
+  CALL FUNCTION 'ITS_PING'
+       EXCEPTIONS
+            ITS_NOT_AVAILABLE = 1
+            OTHERS            = 2.
+
+  IF SY-SUBRC <> 0.
+    RAISE ITS_NOT_AVAILABLE.
+  ENDIF.
+* --------------------------------------------------------------------
+*break-point.
+      refresh wt_split.
+      split fname at '.' into table wt_split.
+      describe table wt_split lines wb_ligne.
+      read table wt_split index wb_ligne.
+*
+  WRITE_PTR = 0.
+  WRITE_LEN = 0.
+
+  concatenate 'Content-Disposition: attachment; filename="Solvay.'
+              wt_split
+              '"'
+              into content_disposition.
+
+  WRITE CONTENT_DISPOSITION TO AGATE-DATA+WRITE_PTR.
+  WRITE_PTR = WRITE_PTR + STRLEN( CONTENT_DISPOSITION ) + 1.
+
+  WRITE CRLF TO AGATE-DATA+WRITE_PTR.
+  WRITE_PTR = WRITE_PTR + 2.
+*  WRITE CRLF TO AGATE-DATA+WRITE_PTR.
+*  WRITE_PTR = WRITE_PTR + 2.
+
+  WRITE CONTENT_TYPE TO AGATE-DATA+WRITE_PTR.
+* WRITE_PTR = STRLEN( CONTENT_TYPE ) + 1.
+  WRITE_PTR = WRITE_PTR + STRLEN( CONTENT_TYPE ) + 1.
+
+  DESCRIBE FIELD MIME_TYPE LENGTH C_LEN.
+  WRITE MIME_TYPE TO AGATE+WRITE_PTR.
+  WRITE_PTR = WRITE_PTR + C_LEN.
+
+  WRITE CRLF TO AGATE-DATA+WRITE_PTR.
+  WRITE_PTR = WRITE_PTR + 2.
+  WRITE CRLF TO AGATE-DATA+WRITE_PTR.
+  WRITE_PTR = WRITE_PTR + 2.
+
+  DATA_LEN = DATA_LEN + WRITE_PTR.     " Update with header size.
+
+  LOOP AT DATA_TAB.
+
+    assign data_tab   to <fs_from> casting.
+    assign agate-data to <fs_to>   casting.
+
+    DO.
+
+      ASSIGN COMPONENT SY-INDEX OF STRUCTURE DATA_TAB TO <F>.
+      IF SY-SUBRC <> 0.
+        IF SY-INDEX > 1.
+           EXIT. " System problem
+        ELSE.
+           ASSIGN DATA_TAB TO <F>.
+        ENDIF.
+      ENDIF.
+
+      DESCRIBE FIELD <F> LENGTH C_LEN.
+      END_LEN = WRITE_PTR + C_LEN.
+
+      IF END_LEN > MAX_LEN.
+
+*       Break up into components
+        C1_LEN = MAX_LEN - WRITE_PTR.
+        C2_LEN = C_LEN - C1_LEN.
+
+        MOVE <fs_from>+0(C1_LEN) TO <fs_to>+WRITE_PTR.
+        APPEND AGATE.
+
+        assign agate-data to <fs_to> casting.
+
+        MOVE <fs_from>+C1_LEN(C2_LEN) TO <fs_to>. "AGATE-DATA.
+
+        WRITE_PTR = C2_LEN.
+
+      ELSE.
+
+        WRITE <fs_from>+0(C_LEN) TO <fs_to>+WRITE_PTR.
+        WRITE_PTR = WRITE_PTR + C_LEN.
+
+        IF WRITE_PTR = MAX_LEN.
+          APPEND AGATE.
+          WRITE_PTR = 0.
+          assign agate-data to <fs_to> casting.
+        ENDIF.
+
+      ENDIF.
+
+    ENDDO.
+
+  ENDLOOP.
+
+  IF WRITE_PTR <> 0.
+    APPEND AGATE.
+  ENDIF.
+
+  MOVE DATA_LEN TO CDATA_LEN.          " Convert to CHAR
+  CONDENSE CDATA_LEN NO-GAPS.
+
+  CALL FUNCTION 'ALEWEB_DOWNLOAD'
+       DESTINATION 'SAPGUI'
+       EXPORTING LENGTH  = CDATA_LEN
+       TABLES    RAWDATA = AGATE
+                 EXCEPTIONS SYSTEM_FAILURE
+                            COMMUNICATION_FAILURE.
+
+endform.                    " ALEWEB_DOWNLOAD
+*&---------------------------------------------------------------------*
+*&      Form  split_timestamp
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_WT_FLSTI_TIMESTAMP  text
+*----------------------------------------------------------------------*
+form split_timestamp using    p_timestamp.
+data: w$_date like sy-datum,
+      w$_time like sy-uzeit.
+*
+    w$_date = P_timestamp(8).
+    w$_time = P_timestamp+8(6).
+    write w$_date to wl_date.
+    write w$_time to wl_time.
+endform.                    " split_timestamp

@@ -1,0 +1,18 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_TEST_TC                                               *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_test_tc                 .
+TABLES: t001, vbpa.
+CONTROLS: cg_t001 TYPE TABLEVIEW USING SCREEN 10.
+*
+DATA: wt_t001 LIKE t001 OCCURS 0 WITH HEADER LINE.
+REFRESH wt_t001 FROM TABLE t001.
+*set screen 10.
+SELECT * FROM vbpa WHERE parvw = 'AG'.
+  WRITE: / vbpa-vbeln, vbpa-parvw.
+ENDSELECT.

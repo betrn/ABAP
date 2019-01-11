@@ -1,0 +1,50 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_COPY_INTERNET_USERS                                   *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_copy_internet_users     .
+TABLES: bapiusw01,
+        bapiuid.
+PARAMETERS: objtype  LIKE bapiusw01-objtype,
+            objid    LIKE bapiusw01-objid,
+            password LIKE bapiuid-password.
+*
+*SELECT SINGLE * FROM  bapiusw01 CLIENT SPECIFIED
+*       WHERE  mandant  = ___
+*       AND    objtype  = ___
+*       AND    objid    = ___.
+*
+SELECT        * FROM  bapiusw01
+       WHERE  objtype  = objtype
+       AND    objid    = objid.
+  bapiusw01-objtype = 'ZZVS_USERI'.
+  INSERT bapiusw01.
+ENDSELECT.
+*
+*                                 /- user's password check (action 39)
+CLEAR bapiusw01.
+bapiusw01-objid   = objid.
+bapiusw01-objtype = 'ZZVS_USERI'.
+bapiuid-password  = password.
+bapiuid-action    = '39'.
+*
+CALL FUNCTION 'WWW_USER_AUTHORITY'
+     EXPORTING
+          id       = bapiusw01-objid
+          idtype   = bapiusw01-objtype
+          password = bapiuid-password
+          action   = bapiuid-action
+     IMPORTING
+          ret      = bapiuid-rcode
+     EXCEPTIONS
+          OTHERS   = 1.
+*                                 /- incorrect userid or password
+IF sy-subrc <> 0.
+  WRITE: / 'Incorrect password'.
+ELSE.
+  WRITE: / 'OK'.
+ENDIF.

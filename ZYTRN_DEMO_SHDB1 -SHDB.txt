@@ -1,0 +1,42 @@
+report ZYTRN_DEMO_SHDB1 no standard page heading line-size 255.
+
+include bdcrecx1.
+
+start-of-selection.
+
+perform open_group.
+
+perform bdc_dynpro      using 'SAPMF02D' '0100'.
+perform bdc_field       using 'BDC_CURSOR'
+                              'RF02D-KTOKD'.
+perform bdc_field       using 'BDC_OKCODE'
+                              '/00'.
+perform bdc_field       using 'RF02D-KTOKD'
+                              '0001'.
+perform bdc_dynpro      using 'SAPMF02D' '0110'.
+perform bdc_field       using 'BDC_CURSOR'
+                              'KNA1-SORTL'.
+perform bdc_field       using 'BDC_OKCODE'
+                              'UPDA'.
+perform bdc_field       using 'KNA1-NAME1'
+                              'Dupont (test trn)'.
+perform bdc_field       using 'KNA1-SORTL'
+                              'DUPONT'.
+perform bdc_field       using 'KNA1-ORT01'
+                              'Brussels'.
+perform bdc_field       using 'KNA1-LAND1'
+                              'BE'.
+perform bdc_field       using 'KNA1-SPRAS'
+                              'EN'.
+perform bdc_field       using 'KNA1-PSTLZ'
+                              '1140'.
+perform bdc_dynpro      using 'SAPMF02D' '0120'.
+perform bdc_field       using 'BDC_CURSOR'
+                              'KNA1-LZONE'.
+perform bdc_field       using 'BDC_OKCODE'
+                              '=UPDA'.
+perform bdc_field       using 'KNA1-LZONE'
+                              '0000000001'.
+perform bdc_transaction using 'XD01'.
+
+perform close_group.

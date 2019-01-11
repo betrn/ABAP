@@ -1,0 +1,44 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_DEMO_GRAPH_3D                                         *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_demo_graph_3d           .
+*
+TABLES: bapi0002_2.
+*
+DATA: BEGIN OF wt_company OCCURS 0.
+        INCLUDE STRUCTURE bapi0002_1.
+DATA: END OF wt_company.
+*
+DATA: BEGIN OF wt_data OCCURS 0,
+        name(10),
+        value TYPE p,
+      END OF wt_data.
+*
+CALL FUNCTION 'BAPI_COMPANYCODE_GETLIST'
+     TABLES
+          companycode_list = wt_company.
+*
+REFRESH wt_data.
+LOOP AT wt_company.
+  CHECK sy-tabix < 50.
+  CALL FUNCTION 'BAPI_COMPANYCODE_GETDETAIL'
+    EXPORTING
+      companycodeid             = wt_company-comp_code
+    IMPORTING
+      companycode_detail        = bapi0002_2
+            .
+  CLEAR wt_data.
+  wt_data-name     = bapi0002_2-country.
+  wt_data-value    = 1.
+  COLLECT wt_data.
+ENDLOOP.
+*
+CALL FUNCTION 'GRAPH_3D'
+  TABLES
+    data               = wt_data
+          .

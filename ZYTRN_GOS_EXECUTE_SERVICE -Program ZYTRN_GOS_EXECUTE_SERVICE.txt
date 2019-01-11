@@ -1,0 +1,35 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_GOS_EXECUTE_SERVICE                                   *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_GOS_EXECUTE_SERVICE     .
+tables: BORIDENT.
+*
+clear BORIDENT.
+*borident-objkey = '51056472132002'.
+*borident-objtype = 'BUS2081'.
+*
+call screen 100.
+*
+CALL FUNCTION 'GOS_EXECUTE_SERVICE'
+  EXPORTING
+    ip_service             = 'URL_CREA'
+    is_object              = BORIDENT
+    ip_no_commit           = ' '
+    ip_popup               = 'X'
+* IMPORTING
+*   EP_EVENT               =
+*   EP_STATUS              =
+*   EP_ICON                =
+* EXCEPTIONS
+*   EXECUTION_FAILED       = 1
+*   OTHERS                 = 2
+          .
+IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.

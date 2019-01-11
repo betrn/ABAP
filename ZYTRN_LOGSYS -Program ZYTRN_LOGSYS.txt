@@ -1,0 +1,30 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_LOGSYS                                                *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_logsys                  .
+DATA: BEGIN OF wt_liste OCCURS 0.
+        INCLUDE STRUCTURE abaplist.
+DATA: END OF wt_liste.
+
+SUBMIT sapicdtf VIA SELECTION-SCREEN EXPORTING LIST TO MEMORY
+AND RETURN.
+
+CALL FUNCTION 'LIST_FROM_MEMORY'
+  TABLES
+    listobject       = wt_liste
+* EXCEPTIONS
+*   NOT_FOUND        = 1
+*   OTHERS           = 2
+          .
+IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+LOOP AT wt_liste.
+  WRITE: / wt_liste-rfcrecord.
+ENDLOOP.

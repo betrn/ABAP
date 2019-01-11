@@ -1,0 +1,31 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_ABAP_OBJECT                                           *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_abap_object             .
+*
+CLASS flight DEFINITION.
+  PUBLIC SECTION.
+    METHODS: insert IMPORTING number TYPE ztesttrn-numero.
+  PRIVATE SECTION.
+    DATA: wflight TYPE ztesttrn.
+ENDCLASS.
+*
+CLASS flight IMPLEMENTATION.
+  METHOD insert.
+    CLEAR wflight.
+    wflight-numero = number.
+    INSERT INTO ztesttrn VALUES wflight.
+  ENDMETHOD.
+ENDCLASS.
+*
+DATA: myflight TYPE REF TO flight.
+*
+START-OF-SELECTION.
+*
+  CREATE OBJECT myflight.
+  CALL METHOD myflight->insert EXPORTING number = '8596111'.

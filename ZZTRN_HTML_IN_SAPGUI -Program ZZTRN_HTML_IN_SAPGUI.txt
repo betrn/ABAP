@@ -1,0 +1,310 @@
+*&---------------------------------------------------------------------*
+*& Report  ZZTRN_HTML_IN_SAPGUI                                        *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*& Th. Renault (Information Resources S.A.)                            *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZZTRN_HTML_IN_SAPGUI          .
+* type
+TYPE-POOLS: CNHT.
+INCLUDE SIMAGECONTROLCLASSDEF.
+INCLUDE SIMAGECONTROLCLASSIMPL.
+CONSTANTS: CONST_X VALUE 'X'.
+DATA: H_HTML_CONTROL TYPE CNTL_HANDLE.
+DATA: IDES_INTRA_URL(100) TYPE C VALUE
+'http://www.bxl.be.solvay.com/e_business/customers_extranet/default.htm'
+.
+DATA: PROG_REPID LIKE SY-REPID, HTML_CONTROL_ALIGN TYPE I.
+DATA: B_CONTROL_FRAMEWORK_INIT, B_HTML_CONTROL_INIT.
+DATA: URL(2048), FRAME(255), ACTION(256), GETDATA(2048),
+      POSTDATALINE(1024), POSTDATA_SIZE TYPE I, UNIQUE_ID(3) TYPE N.
+DATA: POSTDATA_TAB TYPE CNHT_POST_DATA_TAB WITH HEADER LINE.
+*
+*-----------------
+START-OF-SELECTION.
+*-----------------
+  CALL SCREEN 100.
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE STATUS_0100 OUTPUT.
+  SET PF-STATUS '0100'.
+  PERFORM INIT_HTML.
+  IF SY-SUBRC IS INITIAL.
+    PERFORM LOAD_GRAPHICS_ENTRY.
+    PERFORM LOAD_HOME_PAGE_ENTRY.
+  ENDIF.
+* CHECK NOT SY-SUBRC IS INITIAL.
+* PERFORM EXIT_HTML.
+ENDMODULE.                             " STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE USER_COMMAND_0100 INPUT.
+*                                 /- on passe par ce traitement si l'on
+*                                    utilise une lien HTML comme
+*                                    <a href="SAPEVENT:SE80">
+  IF SY-UCOMM CA '%'.
+    CALL FUNCTION 'HTMLCNTL_GET_EVENT_URL'
+         EXPORTING
+              H_CONTROL = H_HTML_CONTROL
+         CHANGING
+              URL       = URL.
+    CALL FUNCTION 'HTMLCNTL_GET_EVENT_FRAME'
+         EXPORTING
+              H_CONTROL  = H_HTML_CONTROL
+         CHANGING
+              FRAME_NAME = FRAME.
+    CALL FUNCTION 'HTMLCNTL_GET_EVENT_ACTION'
+         EXPORTING
+              H_CONTROL = H_HTML_CONTROL
+         CHANGING
+              ACTION    = ACTION.
+    CALL FUNCTION 'HTMLCNTL_GET_EVENT_GETDATA'
+         EXPORTING
+              H_CONTROL = H_HTML_CONTROL
+         CHANGING
+              GET_DATA  = GETDATA.
+    CALL FUNCTION 'HTMLCNTL_GET_EVENT_POSTDATA'
+         EXPORTING
+              H_CONTROL  = H_HTML_CONTROL
+         IMPORTING
+              SIZE       = POSTDATA_SIZE
+         TABLES
+              POST_DATA  = POSTDATA_TAB
+         EXCEPTIONS
+              CNTL_ERROR = 1
+              OTHERS     = 2.
+    CLEAR POSTDATALINE.
+    READ TABLE POSTDATA_TAB INDEX 1 INTO POSTDATALINE.
+    PERFORM ACTION USING ACTION.
+  ELSE.
+*                                 /- analyse normale de l'OK-CODE
+    CASE SY-UCOMM.
+      WHEN 'BACK'.
+        LEAVE TO SCREEN 0.
+      WHEN 'GOBA'.
+        CALL FUNCTION 'HTMLCNTL_GO_BACK'
+             EXPORTING
+                  H_CONTROL               = H_HTML_CONTROL
+*            EXCEPTIONS
+*                 CNTL_SYSTEM_ERROR       = 1
+*                 CNTL_ERROR              = 2
+*                 CALL_METHOD_ERROR       = 3
+*                 CONTROL_NOT_INITIALIZED = 4
+*                 OTHERS                  = 5
+                  .
+      WHEN 'MM03'.
+        CALL TRANSACTION 'MM03'.
+      WHEN 'CALC'.
+        CALL FUNCTION 'WS_EXECUTE'
+             EXPORTING
+                  PROGRAM = 'CALC.EXE'
+                  WINID   = '1'.
+      WHEN SPACE.                                           "Nix
+        EXIT.
+      WHEN 'HHOM'.                     " show the home page
+        PERFORM EXIT_HTML.
+        LEAVE TO TRANSACTION 'YIDES'.
+      WHEN 'HRFR'.
+        CLEAR SY-UCOMM.
+        CALL FUNCTION 'HTMLCNTL_DO_REFRESH'
+             EXPORTING
+                  H_CONTROL = H_HTML_CONTROL.
+        CALL FUNCTION 'HTMLCNTL_GET_CURRENT_URL'
+             EXPORTING
+                  H_CONTROL = H_HTML_CONTROL
+             IMPORTING
+                  URL       = URL.
+      WHEN OTHERS.
+        CHECK NOT SY-UCOMM = SPACE.
+*break-point.
+*       if not an ides transaction, leave ides html page
+        IF NOT SY-UCOMM+0(2) = 'YI'.
+          PERFORM EXIT_HTML.
+        ENDIF.
+        CALL TRANSACTION SY-UCOMM.
+    ENDCASE.
+  ENDIF.
+*
+ENDMODULE.                             " USER_COMMAND_0100  INPUT
+*
+*-------------
+FORM INIT_HTML.
+*-------------
+  IF B_CONTROL_FRAMEWORK_INIT IS INITIAL.
+    CALL FUNCTION 'CONTROL_INIT'
+         EXCEPTIONS
+              OTHERS = 4.
+    CHECK SY-SUBRC IS INITIAL.
+    B_CONTROL_FRAMEWORK_INIT = CONST_X.
+  ENDIF.
+  CLEAR SY-SUBRC.
+  IF B_HTML_CONTROL_INIT IS INITIAL.
+    PROG_REPID = SY-REPID.
+    CALL FUNCTION 'HTMLCNTL_CREATE'
+         EXPORTING
+              OWNER_REPID = PROG_REPID
+              PARENTID    = DYNPRO_0
+              LINK_REPID  = PROG_REPID
+              DYNNR       = SY-DYNNR
+         CHANGING
+              HANDLE      = H_HTML_CONTROL
+         EXCEPTIONS
+*               control_install_error = 1
+*               create_error          = 2
+              OTHERS                = 3.
+    CHECK SY-SUBRC IS INITIAL.
+    B_HTML_CONTROL_INIT = CONST_X.
+    HTML_CONTROL_ALIGN = ALIGN_AT_RIGHT + ALIGN_AT_BOTTOM.
+*                                 /- détermine la taille et la place de
+*                                    la denêtre qui va contenir la page
+*                                    HTML
+    CALL FUNCTION 'HTMLCNTL_INIT'
+         EXPORTING
+              H_CONTROL                  = H_HTML_CONTROL
+              LEFT                       = 20
+*             top                        = 4
+              WIDTH                      = 25
+*             height                     = 1
+*             metric                     = cntl_metric_dynpro
+              ALIGN                      = HTML_CONTROL_ALIGN
+              REGISTER_EVENT_ON_NAVIGATE = CONST_X
+*              NO_FLUSH                   =
+         EXCEPTIONS
+*              cntl_system_error          = 1
+*              cntl_error                 = 2
+*              dp_create_error            = 3
+*              dp_install_error           = 4
+*              dp_error                   = 5
+              OTHERS                     = 6.
+  ENDIF.
+*
+ENDFORM.                               " INIT_HTML
+*---------------------------------------------------------------------*
+*       FORM LOAD_GRAPHICS_ENTRY                                      *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM LOAD_GRAPHICS_ENTRY.
+*                                 /- les objets doivent être chargés via
+*                                    la transaction SMW0 (binary data)
+*                                    mimetype = image/gif
+*                                    Dans cet exemple le nom utilisé
+*                                    pour atteindre ce GIF dans une page
+*                                    HTML sera support.gif
+*                                    Ex.: <body background="support.gif"
+  CALL FUNCTION 'HTMLCNTL_LOAD_MIME_OBJECT'
+       EXPORTING
+            H_CONTROL  = H_HTML_CONTROL
+*           OBJECT_ID  = 'ZZTRN_GIF'
+            OBJECT_ID  = 'ZPVSU_CUSTOMERS_EXTRANET'
+            OBJECT_URL = 'support.gif'
+       EXCEPTIONS
+            OTHERS     = 1.
+*
+ENDFORM.                               " LOAD_GRAPHICS_ENTRY
+*---------------------------------------------------------------------*
+*       FORM LOAD_HOME_PAGE_ENTRY                                     *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM LOAD_HOME_PAGE_ENTRY.
+  DATA: DOC_URL(80).
+*                                 /- les pages HTML doivent être
+*                                    chargées par la SMW0 (Templates)
+* Exemple de contenu:
+* ------------------
+*
+*<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+*<html>
+*
+*<head>
+*<meta name="GENERATOR" content="Microsoft FrontPage 3.0">
+*<title>SERVICE HOME PAGE</title>
+*</head>
+*
+*<body background="support.gif" bgcolor="#FFFFFF" text="#000080" link="#
+*<div align="left">
+*<br>
+*<br><br><br><br><br><br>
+*<p>
+*Click on the word <a href="SAPEVENT:SE80">workbench</a> to execute the
+*</p>
+*<p>
+*Click on <a href="http://www.solvay.com">www.solvay.com</a> to enter t
+*</p>
+*<p>
+*Click on <a href="http://bxlsap01.bxl.be.solvay.com/scripts/wgate.dll?~
+*</p>
+*
+*</body>
+*</html>
+*
+  CALL FUNCTION 'HTMLCNTL_LOAD_HTML_DOCUMENT'
+       EXPORTING
+          H_CONTROL    = H_HTML_CONTROL
+          DOCUMENT_ID  = 'ZPVSU_CUSTOMERS_EXTRANET'
+*         DOCUMENT_URL =
+       IMPORTING
+          ASSIGNED_URL = DOC_URL
+       EXCEPTIONS
+          OTHERS       = 1.
+  CHECK SY-SUBRC IS INITIAL.
+*
+  CALL FUNCTION 'HTMLCNTL_SHOW_DATA'
+       EXPORTING
+            H_CONTROL = H_HTML_CONTROL
+            URL       = DOC_URL.
+*
+ENDFORM.                               " LOAD_HOME_PAGE_ENTRY
+*
+*-------------
+FORM EXIT_HTML.
+*-------------
+  IF NOT B_HTML_CONTROL_INIT IS INITIAL.
+    CALL FUNCTION 'HTMLCNTL_DESTROY'
+         CHANGING
+              H_CONTROL = H_HTML_CONTROL
+         EXCEPTIONS
+              OTHERS    = 1.
+  ENDIF.
+  IF NOT B_CONTROL_FRAMEWORK_INIT IS INITIAL.
+    CALL FUNCTION 'CONTROL_EXIT'.
+  ENDIF.
+
+ENDFORM.                               " EXIT_HTML
+*---------------------------------------------------------------------*
+*       FORM ACTION                                                   *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  P_ACTIN                                                       *
+*---------------------------------------------------------------------*
+FORM ACTION CHANGING    P_ACTIN LIKE ACTION.
+*                                 /- on passe par ce traitement si l'on
+*                                    utilise une lien HTML comme
+*                                    <a href="SAPEVENT:SE80">
+  CASE ACTION.
+    WHEN 'SE80'.
+      CALL TRANSACTION 'SE80'.
+    WHEN 'INTR'.
+      REPLACE '?' WITH SY-LANGU INTO IDES_INTRA_URL.
+      CALL FUNCTION 'CALL_BROWSER'
+               EXPORTING
+                 URL = IDES_INTRA_URL
+*                browser_type           =
+*                contextstring          = c_context_string
+               EXCEPTIONS
+                 OTHERS                 = 6.
+    WHEN OTHERS.
+  ENDCASE.
+  CLEAR P_ACTIN.
+ENDFORM.                               " ACTION

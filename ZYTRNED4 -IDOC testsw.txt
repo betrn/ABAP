@@ -1,0 +1,135 @@
+REPORT ztvda000 .
+
+PARAMETERS:
+            send_it AS CHECKBOX.
+
+***EDIDD (R/2)******************************
+DATA: BEGIN OF r2_edidd,
+  MANDT(3),
+  DOCNUM(16) type n,
+  SEGNUM(6) type n,
+  SEGNAM(10),
+  PSGNUM(6) type n,
+  HLEVEL(2) type n,
+  SDATA1(250),
+  SDATA2(250),
+  SDATA3(250),
+  SDATA4(250),
+end OF r2_edidd.
+*********************************
+DATA: BEGIN OF r2_edidc,
+  mandt(3)  ,
+  docnum(16) type n,
+  docrel(4) ,
+  status(2) ,
+  doctyp(8) ,
+  direct(1) ,
+  rcvpor(10),
+  rcvprt(2) ,
+  rcvprn(10),
+  rcvsad(10),
+  rcvsmn(3) ,
+  rcvsna(1) ,
+  rcvsca(3) ,
+  rcvsdf(1) ,
+  rcvslf(3) ,
+  rcvlad(70),
+  std(1)    ,
+  stdvrs(6) ,
+  stdmes(6) ,
+  mescod(3) ,
+  mesfct(3) ,
+  outmod(1) ,
+  test(1)   ,
+  sndpor(10),
+  sndprt(2) ,
+  sndprn(10),
+  sndsad(10),
+  sndsmn(3) ,
+  sndsna(1) ,
+  sndsca(3) ,
+  sndsdf(1) ,
+  sndslf(3) ,
+  sndlad(70),
+  refint(14),
+  refgrp(14),
+  refmes(14),
+  arckey(70),
+  credat(8) ,
+  cretim(6) ,
+  mestyp(6) ,
+  idoctyp(8),
+  cimtyp(8) ,
+  rcvpfc(2) ,
+  sndpfc(2) ,
+  serial(20),
+  exprss(1) ,
+  upddat(8) ,
+  updtim(6) ,
+  relnum(8) ,
+  kzvsd(1)  ,
+  sapcom(10),
+END OF r2_edidc.
+
+* C:\WINNT\Profiles\betrn\Desktop\Sorders2_trn.txt
+
+
+
+DATA: BEGIN OF wt_upload OCCURS 0,
+        line(900),
+      END OF wt_upload.
+*DATA: it_r2idd LIKE r2_edidd OCCURS 0 WITH HEADER LINE,
+DATA: it_r2idd LIKE ZZS_R2_EDIDd OCCURS 0 WITH HEADER LINE,
+      it_r2idc LIKE ZZS_R2_EDIDC.
+data: wn_docnum(16) type n.
+
+CALL FUNCTION 'UPLOAD'
+     EXPORTING
+          FILENAME = 'C:\WINNT\Profiles\betrn\Desktop\Sorders3_trn.txt'
+     TABLES
+          data_tab = wt_upload.
+IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+REFRESH:
+         it_r2idd.
+
+LOOP AT wt_upload.
+  CASE wt_upload-line(1).
+    WHEN ' '.
+      MOVE wt_upload TO it_R2idc.
+*      it_r2idc-
+*      APPEND it_r2idc.
+    WHEN OTHERS.
+      MOVE wt_upload TO it_r2idd.
+      APPEND it_r2idd.
+  ENDCASE.
+ENDLOOP.
+*
+write: / it_r2idc.
+loop at it_r2idd.
+  write: / it_r2idd(100).
+endloop.
+*
+IF NOT send_it IS INITIAL.
+CALL FUNCTION 'Z_ZS_SEND_IDOC_TO_R2'
+  EXPORTING
+    control_record          = it_r2idc
+  IMPORTING
+    DOCUMENT_NUMBER         = wn_docnum
+    ERROR_CODE              = sy-msgno
+    ERROR_DESCRIPTION       = sy-msgv1
+  tables
+    data_table              = it_r2idd
+          .
+
+*  CALL FUNCTION 'Z_RECEIVE_AND_CREATE_IDOC' DESTINATION 'APA1CIC0'
+*    exporting CONTROL_RECORD    = it_r2idc
+*    Importing DOCUMENT_NUMBER   = wn_docnum
+*              ERROR_CODE        = sy-msgno
+*              ERROR_DESCRIPTION = sy-msgv1
+*    TABLES    DATA_TABLE        = it_r2idd .*
+*
+  write: / sy-subrc, wn_docnum, sy-msgno, sy-msgv1.
+ENDIF.

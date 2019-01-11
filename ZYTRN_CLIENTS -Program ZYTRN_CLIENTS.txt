@@ -1,0 +1,49 @@
+
+*& Report  ZYTRN_CLIENTS                                               *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_CLIENTS                 .
+tables: kna1.
+data  ok_code like sy-ucomm.
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module USER_COMMAND_0100 input.
+  case ok_code(4).
+    when 'DISP'.
+      set screen 200.
+    when others.
+      set screen 100.
+  endcase.
+endmodule.                 " USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0200  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module USER_COMMAND_0200 input.
+  case ok_code(4).
+    when 'NEXT'.
+      set screen 100.
+    when others.
+      set screen 200.
+  endcase.
+endmodule.                 " USER_COMMAND_0200  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  read_kunnr  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module read_kunnr input.
+  SELECT SINGLE * FROM  kna1 CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt
+         AND    kunnr  = kna1-kunnr.
+
+endmodule.                 " read_kunnr  INPUT

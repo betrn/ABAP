@@ -1,0 +1,199 @@
+REPORT ztvda000 .
+
+PARAMETERS: p_idoc LIKE edidc-docnum DEFAULT '213040',
+            send_it AS CHECKBOX.
+
+***EDIDD (R/2)******************************
+DATA: BEGIN OF r2_edidd,
+  MANDT(3),
+  DOCNUM(16) type n,
+  SEGNUM(6) type n,
+  SEGNAM(10),
+  PSGNUM(6) type n,
+  HLEVEL(2) type n,
+  SDATA1(250),
+  SDATA2(250),
+  SDATA3(250),
+  SDATA4(250),
+end OF r2_edidd.
+*********************************
+DATA: BEGIN OF r2_edidc,
+  mandt(3)  ,
+  docnum(16) type n,
+  docrel(4) ,
+  status(2) ,
+  doctyp(8) ,
+  direct(1) ,
+  rcvpor(10),
+  rcvprt(2) ,
+  rcvprn(10),
+  rcvsad(10),
+  rcvsmn(3) ,
+  rcvsna(1) ,
+  rcvsca(3) ,
+  rcvsdf(1) ,
+  rcvslf(3) ,
+  rcvlad(70),
+  std(1)    ,
+  stdvrs(6) ,
+  stdmes(6) ,
+  mescod(3) ,
+  mesfct(3) ,
+  outmod(1) ,
+  test(1)   ,
+  sndpor(10),
+  sndprt(2) ,
+  sndprn(10),
+  sndsad(10),
+  sndsmn(3) ,
+  sndsna(1) ,
+  sndsca(3) ,
+  sndsdf(1) ,
+  sndslf(3) ,
+  sndlad(70),
+  refint(14),
+  refgrp(14),
+  refmes(14),
+  arckey(70),
+  credat(8) ,
+  cretim(6) ,
+  mestyp(6) ,
+  idoctyp(8),
+  cimtyp(8) ,
+  rcvpfc(2) ,
+  sndpfc(2) ,
+  serial(20),
+  exprss(1) ,
+  upddat(8) ,
+  updtim(6) ,
+  relnum(8) ,
+  kzvsd(1)  ,
+  sapcom(10),
+END OF r2_edidc.
+
+* C:\WINNT\Profiles\betrn\Desktop\Sorders2_trn.txt
+
+
+
+DATA: BEGIN OF wt_upload OCCURS 0,
+        line(900),
+      END OF wt_upload.
+DATA: it_r2idd LIKE r2_edidd OCCURS 0 WITH HEADER LINE,
+      it_edidd LIKE edidd OCCURS 0 WITH HEADER LINE,
+      it_edids LIKE bdidocstat  OCCURS 0 WITH HEADER LINE,
+      gt_edidc LIKE edidc,
+      wg_edidc LIKE edidc,
+      it_r2idc LIKE r2_edidc OCCURS 0 WITH HEADER LINE,
+      it_edidc LIKE edidc OCCURS 0 WITH HEADER LINE,
+      it_ret   LIKE bdwfretvar OCCURS 0 WITH HEADER LINE,
+      it_ser   LIKE bdi_ser OCCURS 0 WITH HEADER LINE.
+DATA: BEGIN OF wt_docnu OCCURS 0.
+        INCLUDE STRUCTURE bdidocs.
+DATA: END OF wt_docnu.
+
+CALL FUNCTION 'UPLOAD'
+     EXPORTING
+          FILENAME = 'C:\WINNT\Profiles\betrn\Desktop\Sorders2_trn.txt'
+     TABLES
+          data_tab = wt_upload.
+IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+REFRESH: it_r2idc,
+         it_r2idd.
+
+LOOP AT wt_upload.
+  CASE wt_upload-line(6).
+    WHEN 'EDI_DC'.
+      MOVE wt_upload+10 TO it_R2idc.
+*      it_r2idc-
+      APPEND it_r2idc.
+    WHEN OTHERS.
+      MOVE wt_upload+10 TO it_r2idd.
+      APPEND it_r2idd.
+  ENDCASE.
+ENDLOOP.
+
+
+*CALL FUNCTION 'IDOC_READ_COMPLETELY'
+*     EXPORTING
+*          DOCUMENT_NUMBER = p_idoc
+*     IMPORTING
+*          IDOC_CONTROL    = gt_edidc
+*     TABLES
+*          INT_EDIDD       = it_edidd.
+**write: sy-subrc.
+**append it_edidc.
+*move gt_edidc to it_edidc.
+*it_edidc-status = '30'.
+*append it_edidc.
+ULINE.
+WRITE: / it_r2idc(100).
+clear it_edidc.
+move-corresponding it_r2idc to it_edidc.
+move 1 to it_edidc-docnum.
+append it_edidc.
+LOOP AT it_r2idd.
+  WRITE: / it_r2idd(100).
+  clear it_edidd.
+  move-corresponding it_r2idd to it_edidd.
+  move it_r2idd-sdata1 to it_edidd-sdata.
+  move 1 to it_edidd-docnum.
+  append it_edidd.
+ENDLOOP.
+ULINE.
+
+*
+IF NOT send_it IS INITIAL.
+ CALL FUNCTION 'COMMUNICATION_IDOC_CREATE'
+   EXPORTING
+*    ERROR_FLAG                         = ' '
+*    DATA_BASE_FLAG                     = ' '
+     FORWARDED_FLAG                     = 'X'
+*    OBJ_TYPE                           =
+*    CHNUM                              =
+   TABLES
+     idoc_control                       = it_edidc
+     idoc_data                          = it_edidd
+*  EXCEPTIONS
+*    ERROR_IN_IDOC_DATA_SEGMENTS        = 1
+*    ERROR_IN_IDOC_CONTROL_RECORD       = 2
+*    ERROR_WRITING_STATUS_RECORDS       = 3
+*    ERROR_WRITING_IDOC                 = 4
+*    RECEIVER_NOT_AUTHORIZED            = 5
+*    OTHERS                             = 6
+           .
+ IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ ENDIF.
+
+* CALL FUNCTION 'IDOC_INPUT_RESEND'
+*      EXPORTING
+*           INPUT_METHOD       = ' '
+*           MASS_PROCESSING    = ' '
+*      TABLES
+*           IDOC_CONTRL        = it_edidc
+*           IDOC_DATA          = it_edidd
+*           IDOC_STATUS        = it_edids
+*           RETURN_VARIABLES   = it_ret
+*           SERIALIZATION_INFO = it_ser.
+  write: / 'RC=', sy-subrc.
+  read table it_edids index 1.
+  write:
+         / it_edids-DOCNUM.
+*
+  COMMIT WORK.
+  CALL FUNCTION 'EDI_OUTPUT_NEW'
+    EXPORTING
+      onl_option        = 'B'
+      error_flag        = ' '
+*   NAST_RECORD       =
+    TABLES
+      i_edidc           = it_edidc
+      i_edidd           = it_edidd
+            .
+    write: / 'RC=', sy-subrc.
+
+ENDIF.

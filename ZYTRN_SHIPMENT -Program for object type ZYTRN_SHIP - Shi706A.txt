@@ -1,0 +1,69 @@
+*****           Implementation of object type ZYTRN_SHIP           *****
+INCLUDE <OBJECT>.
+BEGIN_DATA OBJECT. " Do not change.. DATA is generated
+* only private members may be inserted into structure private
+DATA:
+" begin of private,
+"   to declare private attributes remove comments and
+"   insert private attributes here ...
+" end of private,
+  BEGIN OF KEY,
+      SHIPMENTNUMBER LIKE VTTK-TKNUM,
+  END OF KEY,
+      _VTTK LIKE VTTK.
+END_DATA OBJECT. " Do not change.. DATA is generated
+
+BEGIN_METHOD ZYTRNSHIPMENTGETDATA CHANGING CONTAINER.
+DATA:
+      SHIPMENTNUMBER LIKE VTTK-TKNUM,
+      SHIPMENTHEADER LIKE VTTK,
+      SHIPMENTITEMS LIKE VTTP OCCURS 0.
+  SWC_GET_ELEMENT CONTAINER 'ShipmentNumber' SHIPMENTNUMBER.
+  SWC_GET_TABLE CONTAINER 'ShipmentItems' SHIPMENTITEMS.
+  CALL FUNCTION 'ZYTRN_SHIPMENT_GET_DATA'
+    EXPORTING
+      SHIPMENT_NUMBER = SHIPMENTNUMBER
+    IMPORTING
+      SHIPMENT_HEADER = SHIPMENTHEADER
+    TABLES
+      SHIPMENT_ITEMS = SHIPMENTITEMS
+    EXCEPTIONS
+      NOT_FOUND = 9001
+      OTHERS = 01.
+  CASE SY-SUBRC.
+    WHEN 0.            " OK
+    WHEN 9001.         " NOT_FOUND
+      EXIT_RETURN 9001 sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    WHEN OTHERS.       " to be implemented
+  ENDCASE.
+  SWC_SET_ELEMENT CONTAINER 'ShipmentHeader' SHIPMENTHEADER.
+  SWC_SET_TABLE CONTAINER 'ShipmentItems' SHIPMENTITEMS.
+END_METHOD.
+
+TABLES VTTK.
+*
+GET_TABLE_PROPERTY VTTK.
+DATA SUBRC LIKE SY-SUBRC.
+* Fill TABLES VTTK to enable Object Manager Access to Table Properties
+  PERFORM SELECT_TABLE_VTTK USING SUBRC.
+  IF SUBRC NE 0.
+    EXIT_OBJECT_NOT_FOUND.
+  ENDIF.
+END_PROPERTY.
+*
+* Use Form also for other(virtual) Properties to fill TABLES VTTK
+FORM SELECT_TABLE_VTTK USING SUBRC LIKE SY-SUBRC.
+* Select single * from VTTK, if OBJECT-_VTTK is initial
+  IF OBJECT-_VTTK-MANDT IS INITIAL
+  AND OBJECT-_VTTK-TKNUM IS INITIAL.
+    SELECT SINGLE * FROM VTTK CLIENT SPECIFIED
+        WHERE MANDT = SY-MANDT
+        AND TKNUM = OBJECT-KEY-SHIPMENTNUMBER.
+    SUBRC = SY-SUBRC.
+    IF SUBRC NE 0. EXIT. ENDIF.
+    OBJECT-_VTTK = VTTK.
+  ELSE.
+    SUBRC = 0.
+    VTTK = OBJECT-_VTTK.
+  ENDIF.
+ENDFORM.

@@ -1,0 +1,33 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_DEMO_BADI                                             *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_demo_badi               .
+TABLES: t005.
+*                                 /- mandatory class definition
+CLASS: cl_exithandler DEFINITION LOAD.
+*                                 /- your interface (cfr SE18)
+DATA: exit TYPE REF TO zif_ex_ytrn_demo_badi.
+*
+*-----------------
+START-OF-SELECTION.
+*-----------------
+*
+*                                 /- mandatory call (static method)
+  CALL METHOD cl_exithandler=>get_instance
+              CHANGING instance = exit.
+*
+  SELECT        * FROM  t005 CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt.
+    WRITE: / t005-land1,
+             t005-landk.
+  ENDSELECT.
+*---------------
+END-OF-SELECTION.
+*---------------
+*                                 /- your exit method (object method)
+  CALL METHOD exit->end_of_report.

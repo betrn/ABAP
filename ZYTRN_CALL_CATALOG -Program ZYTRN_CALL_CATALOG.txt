@@ -1,0 +1,160 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_CALL_CATALOG                                          *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_call_catalog            .
+TABLES: t005t.
+INCLUDE avwrtcxm.
+*
+DATA: url LIKE savwctxt-fieldcont,
+      hook LIKE savwctxt-fieldcont,
+      name LIKE savwctxt-fieldname,
+      cont LIKE savwctxt-fieldcont,
+      wn_ligne TYPE i,
+      hook_name LIKE savwctxt-fieldname,
+      hook_index LIKE sy-tabix,
+      sep.
+DATA: ok_code LIKE sy-ucomm.
+DATA: BEGIN OF context OCCURS 0.
+        INCLUDE STRUCTURE savwctxt.
+DATA: END OF context.
+*
+CALL SCREEN 100.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+  CASE ok_code.
+    WHEN 'CALL'.
+*     hook = address used by remote catalog to send
+*            shopping basket to ITS
+      hook =
+'HTTP://xl-itsdev.bxl.be.solvay.com:84/scripts/wgate/zytrn_call_cat/'.
+      CONCATENATE hook
+'?~target=_top&~forcetarget=yes&~OkCode=ADDI&~caller=CTLG' INTO hook.
+*     url = URL of the remote catalog to call
+      url =
+'http://193.132.123.162/scripts/search.dll?Enter2&OCI_VERSION=2.0'.
+      hook_name = 'HOOK_URL'.
+      field-set hook_name 0 hook.
+      field-set 'Username' 0 '202332442'.
+      field-set 'Password' 0 '896548971'.
+      its-browser_redirect url.
+    WHEN 'EXCE'.
+      SET SCREEN 300.
+    WHEN 'ADDI'.
+*     when receiving shopping basket: call screen 200
+      SET SCREEN 200.
+  ENDCASE.
+  CLEAR ok_code.
+ENDMODULE.                 " USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  read_context  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE read_context OUTPUT.
+  CALL FUNCTION 'ITS_IMPORT_CONTEXT'
+    TABLES
+      context                 = context
+*       EXCEPTIONS
+*         ITS_NOT_AVAILABLE       = 1
+*         OTHERS                  = 2
+.
+  wn_ligne = 1.
+  LOOP AT context.
+    field-set 'FIELDNAME'     wn_ligne context-fieldname.
+    field-set 'FIELDINDEX'    wn_ligne context-fieldindex.
+    field-set 'FIELDCONT'     wn_ligne context-fieldcont.
+    ADD 1 TO wn_ligne.
+  ENDLOOP.
+  field-transport.
+ENDMODULE.                 " read_context  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  download_excel  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE download_excel OUTPUT.
+*                                 /- data to send to excel
+  DATA: BEGIN OF wt_excel OCCURS 0,
+          line(200),
+        END OF wt_excel.
+*                                 /- CR/LF
+  DATA: BEGIN OF wg_crlf,
+          crlf(2) TYPE x VALUE '0D0A',
+        END OF wg_crlf,
+        wb_lengt TYPE i,          " # of bytes to send to the ITS
+        wb_leng2 type i.          " length of field wt_excel-line
+*
+  REFRESH wt_excel.
+  CLEAR wb_lengt.
+*
+  PERFORM excel_begin_table.
+*
+  SELECT        * FROM  t005t CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt
+         AND    spras  = sy-langu.
+*
+    PERFORM excel_begin_row.
+    PERFORM excel_new_cell USING t005t-land1.
+    PERFORM excel_new_cell USING t005t-landx.
+    PERFORM excel_new_cell USING t005t-natio.
+    PERFORM excel_end_row.
+  ENDSELECT.
+*
+  PERFORM excel_end_table.
+  mime-download wt_excel wb_lengt 'application/vnd.ms-excel'.
+*
+ENDMODULE.                 " download_excel  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Form  load_excel_table
+*&---------------------------------------------------------------------*
+FORM load_excel_table USING    value(p_value).
+  CONCATENATE p_value wg_crlf INTO wt_excel-line.
+  APPEND wt_excel.
+ENDFORM.                    " load_excel_table
+*&---------------------------------------------------------------------*
+*&      Form  excel_begin_table
+*&---------------------------------------------------------------------*
+FORM excel_begin_table.
+  PERFORM load_excel_table USING '<HTML><BODY><TABLE>'.
+ENDFORM.                    " excel_begin_table
+*&---------------------------------------------------------------------*
+*&      Form  excel_end_table
+*&---------------------------------------------------------------------*
+FORM excel_end_table.
+  PERFORM load_excel_table USING '</TABLE></BODY></HTML>'.
+  describe table wt_excel lines wb_lengt.
+  describe field wt_excel-line length wb_leng2.
+  wb_lengt = wb_lengt * wb_leng2.
+ENDFORM.                    " excel_end_table
+*&---------------------------------------------------------------------*
+*&      Form  excel_begin_row
+*&---------------------------------------------------------------------*
+FORM excel_begin_row.
+  CLEAR wt_excel.
+  CONCATENATE '<TR>' wg_crlf INTO wt_excel-line.
+ENDFORM.                    " excel_begin_row
+*&---------------------------------------------------------------------*
+*&      Form  excel_end_row
+*&---------------------------------------------------------------------*
+FORM excel_end_row.
+  CONCATENATE wt_excel-line '</TR>' wg_crlf INTO wt_excel-line.
+  APPEND wt_excel.
+ENDFORM.                    " excel_end_row
+*&---------------------------------------------------------------------*
+*&      Form  excel_new_cell
+*&---------------------------------------------------------------------*
+FORM excel_new_cell USING    value(p_cell).
+  CONCATENATE wt_excel-line '<TD>'
+                            p_cell
+                            '</TD>'
+                            wg_crlf INTO wt_excel-line.
+ENDFORM.                    " excel_new_cell

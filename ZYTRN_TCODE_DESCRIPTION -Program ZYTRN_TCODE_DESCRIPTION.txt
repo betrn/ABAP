@@ -1,0 +1,140 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_TCODE_DESCRIPTION                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zytrn_tcode_description       .
+*
+TABLES: tstct,
+        tstc,
+        trdir,
+        taplt,
+        tadir,
+        tdevct.
+DATA: BEGIN OF wt_uploa OCCURS 0,
+        tcode(12),
+        f1(30),
+        f2(10),
+        f3(7),
+        f4(2),
+        f5(2),
+        f6,
+        f7,
+        f8,
+        f9,
+        fa,
+        ttext LIKE tstct-ttext,
+        ctext LIKE tdevct-ctext,
+      END OF wt_uploa.
+*
+DATA: w$_pgmna LIKE tstc-pgmna.
+*
+DATA: tab LIKE textpool OCCURS 50 WITH HEADER LINE.
+*
+CALL FUNCTION 'UPLOAD'
+  EXPORTING
+    filetype                      = 'DAT'
+  TABLES
+    data_tab                      = wt_uploa
+* EXCEPTIONS
+*   CONVERSION_ERROR              = 1
+*   INVALID_TABLE_WIDTH           = 2
+*   INVALID_TYPE                  = 3
+*   NO_BATCH                      = 4
+*   UNKNOWN_ERROR                 = 5
+*   GUI_REFUSE_FILETRANSFER       = 6
+*   OTHERS                        = 7
+          .
+IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+*
+LOOP AT wt_uploa.
+  CLEAR tstct.
+  SELECT SINGLE * FROM  tstct
+         WHERE  sprsl  = 'FR'
+         AND    tcode  = wt_uploa-tcode.
+*                                 /- transaction code
+  IF sy-subrc = 0.
+    CLEAR tstc.
+    SELECT SINGLE * FROM  tstc
+           WHERE  tcode  = wt_uploa-tcode.
+    w$_pgmna = tstc-pgmna.
+    wt_uploa-ttext = tstct-ttext.
+*                                 /- report
+  ELSE.
+    REFRESH tab.
+    w$_pgmna = wt_uploa-tcode.
+    READ TEXTPOOL wt_uploa-tcode INTO tab LANGUAGE 'FR'.
+    CLEAR tab.
+    READ TABLE tab WITH KEY id = 'R'.
+    wt_uploa-ttext = tab-entry.
+  ENDIF.
+  CLEAR trdir.
+  SELECT SINGLE * FROM  trdir
+         WHERE  name  = w$_pgmna.
+  CLEAR taplt.
+  SELECT SINGLE * FROM  taplt
+         WHERE  appl  = trdir-appl
+           AND  SPRSL = 'FR'.
+*  clear tadir.
+*  SELECT SINGLE * FROM  tadir
+*         WHERE  pgmid     = 'R3TR'
+*         AND    object    = 'PROG'
+*         AND    obj_name  = w$_pgmna.
+*  clear tdevct.
+*  SELECT SINGLE * FROM  tdevct
+*         WHERE  devclass  = tadir-devclass
+*         AND    spras     = 'FR'.
+  wt_uploa-ctext = taplt-atext.
+  MODIFY wt_uploa.
+  WRITE: / wt_uploa.
+ENDLOOP.
+*
+CALL FUNCTION 'DOWNLOAD'
+  EXPORTING
+*   BIN_FILESIZE                  = ' '
+*   CODEPAGE                      = ' '
+*   FILENAME                      = ' '
+    filetype                      = 'DAT'
+*   ITEM                          = ' '
+*   MODE                          = ' '
+*   WK1_N_FORMAT                  = ' '
+*   WK1_N_SIZE                    = ' '
+*   WK1_T_FORMAT                  = ' '
+*   WK1_T_SIZE                    = ' '
+*   FILEMASK_MASK                 = ' '
+*   FILEMASK_TEXT                 = ' '
+*   FILETYPE_NO_CHANGE            = ' '
+*   FILEMASK_ALL                  = ' '
+*   FILETYPE_NO_SHOW              = ' '
+*   SILENT                        = 'S'
+*   COL_SELECT                    = ' '
+*   COL_SELECTMASK                = ' '
+*   NO_AUTH_CHECK                 = ' '
+* IMPORTING
+*   ACT_FILENAME                  =
+*   ACT_FILETYPE                  =
+*   FILESIZE                      =
+*   CANCEL                        =
+  TABLES
+    data_tab                      = wt_uploa
+*   FIELDNAMES                    =
+* EXCEPTIONS
+*   INVALID_FILESIZE              = 1
+*   INVALID_TABLE_WIDTH           = 2
+*   INVALID_TYPE                  = 3
+*   NO_BATCH                      = 4
+*   UNKNOWN_ERROR                 = 5
+*   GUI_REFUSE_FILETRANSFER       = 6
+*   CUSTOMER_ERROR                = 7
+*   OTHERS                        = 8
+          .
+IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.

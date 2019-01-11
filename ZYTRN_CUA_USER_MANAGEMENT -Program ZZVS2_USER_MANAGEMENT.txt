@@ -1,0 +1,2182 @@
+*&---------------------------------------------------------------------*
+*& Report  ZZVS2_USER_MANAGEMENT                                       *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  zzvs2_user_management         .
+*                                 /- first password
+CONSTANTS: wc_fstpw LIKE rsyst-bcode VALUE 'OBDU8A1'.
+*
+TABLES: zzvsu_0100,               " selection screen
+        zzvsu_0200,               " user's data
+        bapialias,
+        bapialiasx,
+        bapidefaul,
+        bapidefax,
+        bapilogond,
+        bapilogonx,
+        bapibname,
+        bapiaddr3,
+        bapiaddr3x,
+        bapipwd,
+        bapipwdx,
+        agr_prof,
+        agr_define,
+        agr_texts,
+        agr_agrs,
+        ususername,
+        tpar,
+        tvpa,
+        usr04,
+        usr02,
+        usr06,                    " contractual user types
+        kna1,
+        lfa1,
+        zzvsup,                   " link between users ans partners
+        zzvsiu,                   " user profiles
+        usr01,                    " userids
+        usrefus.                  " aliases
+*                                 /- for HTML
+TYPE-POOLS: cnht.
+INCLUDE simagecontrolclassdef.
+INCLUDE simagecontrolclassimpl.
+CONSTANTS: const_x VALUE 'X'.
+DATA: h_html_control TYPE cntl_handle.
+DATA: ides_intra_url(100) TYPE c VALUE
+'http://www.bxl.be.solvay.com/e_business/customers_extranet/default.htm'
+.
+DATA: prog_repid LIKE sy-repid, html_control_align TYPE i.
+DATA: b_control_framework_init, b_html_control_init.
+DATA: url(2048), frame(255), action(256), getdata(2048),
+      postdataline(1024), postdata_size TYPE i, unique_id(3) TYPE n.
+DATA: postdata_tab TYPE cnht_post_data_tab WITH HEADER LINE.
+
+*                                 /- Table controls
+CONTROLS: cg_zzvsup TYPE TABLEVIEW USING SCREEN 200,
+          cg_roles  TYPE TABLEVIEW USING SCREEN 200.
+*
+TYPE-POOLS: shlp .
+*
+DATA: BEGIN OF wt_zzvsup OCCURS 0,
+        parv1 LIKE zzvsup-parv1,
+        kund1 LIKE kna1-kunnr,
+        name1 LIKE kna1-name1,
+        parv2 LIKE zzvsup-parv2,
+        kund2 LIKE kna1-kunnr,
+        name2 LIKE kna1-name1,
+      END OF wt_zzvsup,
+      wf_selec(1) TYPE c.
+
+*
+DATA: ok_code     LIKE sy-ucomm,
+      w$_okcode   LIKE ok_code,
+      wf_isccs(1),
+      w$_parv1(2),
+      wc_opera(4),
+      wl_locnt(2),
+      wc_syerr(15),
+      w$_kunnr    LIKE kna1-kunnr,
+      w$_lifnr    LIKE kna1-lifnr,
+      w$_parnr    LIKE kna1-kunnr,
+      wc_icon     LIKE icon-name,
+      wl_qinfo    LIKE icont-quickinfo,
+      w$_entab    LIKE tvpa-entab,
+      wl_pater    LIKE agr_define-agr_name,
+      wc_field(30),
+      wn_line     LIKE sy-tabix,
+      w$_subrc    LIKE sy-subrc,
+      w$_name1(30) TYPE c,
+      w$_subr2(2)  TYPE x,
+      wb_lines(4) TYPE n,
+      wb_rolse(4) TYPE n,
+      wf_selpa(1),
+      wi_selpa(4) TYPE n,
+      wf_error.
+*
+DATA: h_field(20) VALUE ' '.
+DATA: h_shlpname LIKE ddshdescr-shlpname.
+DATA: h_call_control LIKE ddshf4ctrl.
+DATA: h_shlp TYPE shlp_descr_t.
+DATA: l_flds_out_tab LIKE ddshretval OCCURS 1 WITH HEADER LINE.
+DATA: l_fieldprop LIKE ddshfprop.
+DATA: l_interface LIKE ddshiface.
+DATA: l_parnr LIKE kupav-parnr.
+*
+DATA: BEGIN OF wt_return OCCURS 0.
+        INCLUDE STRUCTURE bapiret2.
+DATA: END OF wt_return.
+*
+DATA: BEGIN OF wt_roles OCCURS 0.
+        INCLUDE STRUCTURE bapiagr.
+DATA:   selec(1),
+        autho(1),
+        icon(60).
+DATA: END OF wt_roles.
+*
+DATA: BEGIN OF wt_iroles OCCURS 0.
+        INCLUDE STRUCTURE bapiagr.
+DATA: END OF wt_iroles.
+*
+DATA: BEGIN OF wt_rbapi OCCURS 0.
+        INCLUDE STRUCTURE bapiagr.
+DATA: END OF wt_rbapi.
+*
+DATA: BEGIN OF wt_newro OCCURS 0.
+        INCLUDE STRUCTURE bapiagr.
+DATA: END OF wt_newro.
+*
+DATA: BEGIN OF wt_exclu OCCURS 0,
+        fcode LIKE rsmpe-func,
+      END OF wt_exclu.
+*
+DATA: scr_fields LIKE dynpread OCCURS 1 WITH HEADER LINE.
+
+start-of-selection.
+call screen 100.
+*
+*&---------------------------------------------------------------------*
+*&      Module  check_alias_or_userid  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE check_alias_or_userid INPUT.
+  IF ok_code <> 'CREA' AND
+     ok_code <> 'GOBA' AND
+     ok_code <> 'LIST'.
+    CLEAR usrefus.
+*                                 /- is it an alias?
+    SELECT        * FROM  usrefus
+           WHERE  useralias = zzvsu_0100-useralias.
+      EXIT.
+    ENDSELECT.
+*                                 /- no, it's not
+    IF sy-subrc <> 0.
+      CLEAR usr01.
+*                                 /- is it an existing userid?
+      SELECT SINGLE * FROM  usr01
+             WHERE  bname  = zzvsu_0100-useralias.
+      IF sy-subrc <> 0.
+        MESSAGE e901(zi).
+      ELSE.
+*       MESSAGE s902(zi).
+        zzvsu_0100-bname = usr01-bname.
+      ENDIF.
+    ELSE.
+*                                 /- yes, it is an alias
+      zzvsu_0100-bname = usrefus-bname.
+    ENDIF.
+    IF zzvsu_0100-useralias IS INITIAL.
+      MESSAGE e903(zi).
+    ENDIF.
+*                                 /- if internet user creation:
+  ELSEIF ok_code = 'CREA'.
+    CLEAR usrefus.
+*                                 /- alias check -> USREFUS
+    SELECT        * FROM  usrefus
+           WHERE  useralias = zzvsu_0100-useralias.
+      EXIT.
+    ENDSELECT.
+    IF sy-subrc = 0.
+      MESSAGE e914(zi) WITH usrefus-bname.
+    ELSE.
+      CLEAR usr01.
+*                                 /- is it an existing userid?
+      SELECT SINGLE * FROM  usr01
+             WHERE  bname  = zzvsu_0100-useralias.
+      IF sy-subrc = 0.
+        MESSAGE e927(zi) WITH usr01-bname.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+*****
+*  IF ok_code <> 'CREA' AND
+*     ok_code <> 'LIST'.
+**                                 /- if alias filled
+*    IF NOT zzvsu_0100-useralias IS INITIAL.
+*      CLEAR usrefus.
+**                                 /- alias check -> USREFUS
+*      SELECT        * FROM  usrefus
+*             WHERE  useralias = zzvsu_0100-useralias.
+*        EXIT.
+*      ENDSELECT.
+*      IF sy-subrc <> 0.
+*        MESSAGE e900(zi).
+*      ELSE.
+*        zzvsu_0100-bname = usrefus-bname.
+*      ENDIF.
+*    ELSE.
+**                                 /- if userid filled
+*      IF NOT zzvsu_0100-bname IS INITIAL.
+*        CLEAR usrefus.
+**                                 /- alias for this userid?
+*        SELECT SINGLE * FROM  usrefus
+*               WHERE  bname = zzvsu_0100-bname.
+**                                 /- if no alias for this userid
+*        IF sy-subrc <> 0 OR
+*           usrefus-useralias IS INITIAL.
+**                                 /- search for userid
+*          SELECT SINGLE * FROM  usr01
+*                 WHERE  bname  = zzvsu_0100-bname.
+*          IF sy-subrc <> 0.
+*            MESSAGE e901(zi).
+*          ELSE.
+*            MESSAGE s902(zi).
+*          ENDIF.
+*        ELSE.
+*          zzvsu_0100-useralias = usrefus-useralias.
+*        ENDIF.
+*      ENDIF.
+*    ENDIF.
+*    IF zzvsu_0100-useralias IS INITIAL AND
+*       zzvsu_0100-bname     IS INITIAL.
+*      MESSAGE e903(zi).
+*    ENDIF.
+**                                 /- if internet user creation:
+*  ELSEIF ok_code = 'CREA'.
+*    CLEAR usrefus.
+**                                 /- alias check -> USREFUS
+*    SELECT        * FROM  usrefus
+*           WHERE  useralias = zzvsu_0100-useralias.
+*      EXIT.
+*    ENDSELECT.
+*    IF sy-subrc = 0.
+*      MESSAGE e914(zi) WITH usrefus-bname.
+*    ENDIF.
+*  ENDIF.
+
+ENDMODULE.                 " check_alias_or_userid  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  leave_transaction  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE leave_transaction INPUT.
+  SET SCREEN 0.
+  LEAVE SCREEN.
+ENDMODULE.                 " leave_transaction  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+  REFRESH wt_exclu.
+  AUTHORITY-CHECK OBJECT 'ZZVS_USERS'
+         ID 'ZZVSPARV1' DUMMY
+         ID 'ZZVSKUND1' DUMMY
+         ID 'ZZVSPARV2' DUMMY
+         ID 'ZZVSKUND2' DUMMY
+         ID 'PRODH'     DUMMY
+         ID 'ZZVSSERVI' DUMMY
+         ID 'ZZVSACTIV' FIELD 'CRUS'.
+  IF sy-subrc <> 0.
+    CLEAR wt_exclu.
+    wt_exclu-fcode = 'CREA'.
+    APPEND wt_exclu.
+  ENDIF.
+  AUTHORITY-CHECK OBJECT 'ZZVS_USERS'
+         ID 'ZZVSPARV1' DUMMY
+         ID 'ZZVSKUND1' DUMMY
+         ID 'ZZVSPARV2' DUMMY
+         ID 'ZZVSKUND2' DUMMY
+         ID 'PRODH'     DUMMY
+         ID 'ZZVSSERVI' DUMMY
+         ID 'ZZVSACTIV' FIELD 'CHUS'.
+  IF sy-subrc <> 0.
+    CLEAR wt_exclu.
+    wt_exclu-fcode = 'CHAN'.
+    APPEND wt_exclu.
+  ENDIF.
+*
+  SET PF-STATUS '0100' EXCLUDING wt_exclu.
+  SET TITLEBAR '100'.
+  PERFORM init_html.
+  IF sy-subrc IS INITIAL.
+    PERFORM load_graphics_entry.
+    PERFORM load_home_page_entry.
+  ENDIF.
+ENDMODULE.                 " STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+  w$_okcode = ok_code.
+  CLEAR: ok_code,
+         wc_opera.
+*
+  CASE w$_okcode.
+    WHEN 'DISP'.
+      wc_opera = 'DISP'.
+      CLEAR zzvsu_0200.
+      MOVE zzvsu_0100-useralias TO zzvsu_0200-useralias.
+      PERFORM read_internet_user_data.
+      wt_roles[] = wt_iroles[].
+      SORT wt_roles BY agr_text.
+      PERFORM set_tc_attributes.
+      SET SCREEN 200.
+    WHEN 'CHAN'.
+      PERFORM call_change_screen.
+    WHEN 'CREA'.
+      wc_opera = 'CREA'.
+*                                 /- is not a CCS
+      CLEAR wf_isccs.
+      PERFORM logged_user_get_detail.
+      SORT wt_roles BY agr_text.
+      CLEAR zzvsu_0200.
+      MOVE zzvsu_0100-useralias TO zzvsu_0200-useralias.
+      CLEAR zzvsu_0100-bname.
+      REFRESH wt_zzvsup.
+      CLEAR wt_zzvsup.
+      wt_zzvsup-name2 = 'ALL'.
+      APPEND wt_zzvsup.
+*
+      REFRESH wt_newro.
+      PERFORM set_tc_attributes.
+      SET SCREEN 200.
+    WHEN 'GOBA'.
+      CALL FUNCTION 'HTMLCNTL_GO_BACK'
+           EXPORTING
+                h_control = h_html_control.
+    WHEN 'LIST'.
+      SUBMIT zzvs2_users_list VIA SELECTION-SCREEN AND RETURN.
+      IMPORT zzvsu_0100-useralias FROM MEMORY ID 'ZZVS2_USERS_LIST'.
+      SET SCREEN 100.
+    WHEN OTHERS.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0200  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0200 OUTPUT.
+  SET PF-STATUS '0200'.
+* REFRESH wt_newro.
+  CLEAR wf_selpa.
+  CLEAR wb_rolse.
+*
+  CASE wc_opera.
+    WHEN 'CREA'.
+      REFRESH wt_exclu.
+      CLEAR wt_exclu.
+      wt_exclu-fcode = 'CHPW'.
+      APPEND wt_exclu.
+      CLEAR wt_exclu.
+      wt_exclu-fcode = 'UNLO'.
+      APPEND wt_exclu.
+      CLEAR wt_exclu.
+      wt_exclu-fcode = 'LOCK'.
+      APPEND wt_exclu.
+      CLEAR wt_exclu.
+      wt_exclu-fcode = 'CHAN'.
+      APPEND wt_exclu.
+      SET PF-STATUS '0200' EXCLUDING wt_exclu.
+      SET TITLEBAR '200'.
+      LOOP AT SCREEN.
+        CHECK screen-group1 =  'PWD'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN 'DISP'.
+      REFRESH wt_exclu.
+      AUTHORITY-CHECK OBJECT 'ZZVS_USERS'
+        ID 'ZZVSPARV1' DUMMY
+        ID 'ZZVSKUND1' DUMMY
+        ID 'ZZVSPARV2' DUMMY
+        ID 'ZZVSKUND2' DUMMY
+        ID 'PRODH'     DUMMY
+        ID 'ZZVSSERVI' DUMMY
+        ID 'ZZVSACTIV' FIELD 'CHUS'.
+      IF sy-subrc <> 0.
+        CLEAR wt_exclu.
+        wt_exclu-fcode = 'CHAN'.
+        APPEND wt_exclu.
+      ENDIF.
+      CLEAR wt_exclu.
+      wt_exclu-fcode = 'UNLO'.
+      APPEND wt_exclu.
+      wt_exclu-fcode = 'LOCK'.
+      APPEND wt_exclu.
+      wt_exclu-fcode = 'CHPW'.
+      APPEND wt_exclu.
+      wt_exclu-fcode = 'SAVE'.
+      APPEND wt_exclu.
+      SET PF-STATUS '0200' EXCLUDING wt_exclu.
+      SET TITLEBAR '210'.
+      LOOP AT SCREEN.
+        CHECK screen-group1 <> 'DIS'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN 'CHAN'.
+      SET PF-STATUS '0200'.
+      REFRESH wt_exclu.
+      wt_exclu-fcode = 'CHAN'.
+      APPEND wt_exclu.
+      SET PF-STATUS '0200' EXCLUDING wt_exclu.
+      SET TITLEBAR '220'.
+      LOOP AT SCREEN.
+        CHECK screen-group1 = 'CHA'.
+        screen-input = 0.
+        IF zzvsu_0100-useralias IS INITIAL AND
+           screen-name = 'ZZVSU_0200-USERALIAS'.
+          screen-input = 1.
+        ENDIF.
+*       screen-required = 0.
+        MODIFY SCREEN.
+      ENDLOOP.
+    WHEN 'CHPW'.
+      REFRESH wt_exclu.
+      CLEAR wt_exclu.
+      wt_exclu-fcode = 'UNLO'.
+      APPEND wt_exclu.
+      wt_exclu-fcode = 'LOCK'.
+      APPEND wt_exclu.
+      wt_exclu-fcode = 'CHPW'.
+      APPEND wt_exclu.
+      wt_exclu-fcode = 'CHAN'.
+      APPEND wt_exclu.
+      SET PF-STATUS '0200' EXCLUDING wt_exclu.
+      SET TITLEBAR '230'.
+      LOOP AT SCREEN.
+        IF screen-group2 = 'PWD'.
+          screen-input = 1.
+        ELSE.
+          screen-input = 0.
+        ENDIF.
+        IF screen-group1 = 'PWD'.
+          screen-input = 0.
+        ENDIF.
+        MODIFY SCREEN.
+      ENDLOOP.
+  ENDCASE.
+ENDMODULE.                 " STATUS_0200  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0200  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0200 INPUT.
+  w$_okcode = ok_code.
+  CLEAR ok_code.
+  CASE w$_okcode.
+    WHEN 'SAVE'.
+      CASE wc_opera.
+        WHEN 'CREA'.
+          PERFORM create_internet_user.
+          PERFORM fill_partners_for_this_user.
+          PERFORM save_user_s_roles.
+          wt_iroles[] = wt_newro[].
+          PERFORM merge_roles.
+          COMMIT WORK.
+        WHEN 'CHAN'.
+          PERFORM change_internet_user.
+          PERFORM fill_partners_for_this_user.
+          PERFORM delete_user_s_roles.
+          PERFORM save_user_s_roles.
+          COMMIT WORK.
+          LEAVE TO SCREEN 100.
+*                                 /- new enqueue necessary due to BAPI
+*          PERFORM user_enqueue USING zzvsu_0100-bname w$_subrc.
+*          IF w$_subrc <> 0.
+*            MESSAGE s913(zi) WITH zzvsu_0200-useralias.
+*            LEAVE TO SCREEN 100.
+*          ENDIF.
+        WHEN 'CHPW'.
+          PERFORM change_password.
+          COMMIT WORK.
+      ENDCASE.
+    WHEN 'NEWR'.
+      CLEAR wt_zzvsup.
+      wt_zzvsup-name2 = 'ALL'.
+      APPEND wt_zzvsup.
+      cg_zzvsup-lines = cg_zzvsup-lines + 1.
+    WHEN 'DELR'.
+      READ TABLE wt_zzvsup INDEX wi_selpa.
+      IF sy-subrc = 0.
+        DELETE wt_zzvsup INDEX wi_selpa.
+        cg_zzvsup-lines = cg_zzvsup-lines - 1.
+      ENDIF.
+    WHEN 'CHPW'.
+      wc_opera = 'CHPW'.
+      SET SCREEN 200.
+      LEAVE SCREEN.
+    WHEN 'SALL'.
+      LOOP AT wt_roles WHERE agr_name CS '-A '.
+        wt_roles-selec = 'X'.
+        MODIFY wt_roles.
+      ENDLOOP.
+    WHEN 'DALL'.
+      LOOP AT wt_roles WHERE agr_name CS '-A '.
+        wt_roles-selec = ' '.
+        MODIFY wt_roles.
+      ENDLOOP.
+    WHEN 'STRA'.
+      LOOP AT wt_roles WHERE agr_name CS '-V '.
+        wt_roles-selec = 'X'.
+        MODIFY wt_roles.
+      ENDLOOP.
+    WHEN 'DTRA'.
+      LOOP AT wt_roles WHERE agr_name CS '-V '.
+        wt_roles-selec = ' '.
+        MODIFY wt_roles.
+      ENDLOOP.
+    WHEN 'SDOC'.
+      LOOP AT wt_roles WHERE agr_name CS '-D '.
+        wt_roles-selec = 'X'.
+        MODIFY wt_roles.
+      ENDLOOP.
+    WHEN 'DDOC'.
+      LOOP AT wt_roles WHERE agr_name CS '-D '.
+        wt_roles-selec = ' '.
+        MODIFY wt_roles.
+      ENDLOOP.
+    WHEN 'UNLO'.
+      PERFORM internet_user_unlock.
+    WHEN 'LOCK'.
+      PERFORM internet_user_lock.
+    WHEN 'CHAN'.
+      PERFORM call_change_screen.
+*    WHEN 'PICK'.
+*      PERFORM display_role_details.
+    WHEN 'BACK'.
+      CASE wc_opera.
+        WHEN 'CHAN' OR
+             'CHPW'.
+          PERFORM user_dequeue USING zzvsu_0100-bname.
+      ENDCASE.
+      SET SCREEN 100.
+    WHEN OTHERS.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_0200  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  create_internet_user
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM create_internet_user.
+  COMMIT WORK.
+*
+  CLEAR bapialias.
+  MOVE-CORRESPONDING zzvsu_0200 TO bapialias.
+  CLEAR bapiaddr3.
+  MOVE-CORRESPONDING zzvsu_0200 TO bapiaddr3.
+  bapibname-bapibname = 'BETRENAULT'.
+  REFRESH wt_return.
+*                                 /- create the Internet user
+  CALL FUNCTION 'SUSR_USER_INTERNET_CREATE'
+       destination 'DE2_001'
+       EXPORTING
+            alias                    = bapialias
+            password                 = wc_fstpw
+            password2                = wc_fstpw
+            address                  = bapiaddr3
+            workflow                 = 'X'
+            extended_existance_check = ' '
+       IMPORTING
+            bname_after_switch       = ususername
+       TABLES
+            return                   = wt_return.
+  CLEAR wf_error.
+  LOOP AT wt_return.
+    IF wt_return-type CO 'EA'.
+      MESSAGE ID wt_return-id
+              TYPE wt_return-type
+              NUMBER wt_return-number
+              WITH wt_return-message_v1
+                   wt_return-message_v2
+                   wt_return-message_v3
+                   wt_return-message_v4.
+      wf_error = 'X'.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+  IF wf_error IS INITIAL.
+    MESSAGE s904(zi) WITH zzvsu_0200-useralias.
+*                                 /- search for the created userid
+*    CALL FUNCTION 'SUSR_USER_BNAME_FROM_ALIAS'
+*       destination 'DE2_001'
+*         EXPORTING
+*              alias = zzvsu_0200-useralias
+*         IMPORTING
+*              bname = bapibname-bapibname.
+break-point.
+bapibname-bapibname = ususername.
+    REFRESH wt_return.
+*                                 /- unlock the created userid
+    CALL FUNCTION 'BAPI_USER_UNLOCK'
+       destination 'DE2_001'
+         EXPORTING
+              username = bapibname-bapibname
+         TABLES
+              return   = wt_return.
+    PERFORM process_error_table TABLES wt_return
+                                CHANGING w$_subrc.
+    IF w$_subrc <> 0.
+      ROLLBACK WORK.
+    ELSE.
+      COMMIT WORK.
+    ENDIF.
+*                                 /- user language
+    CLEAR bapidefaul.
+    MOVE-CORRESPONDING zzvsu_0200 TO bapidefaul.
+    CLEAR bapidefax.
+    MOVE 'X' TO bapidefax-langu.
+*                                 /- authorization group
+    CLEAR bapilogond.
+*   MOVE-CORRESPONDING zzvsu_0200 TO bapilogond.
+    MOVE 'ZBE:XT'                 TO bapilogond-class.
+    CLEAR bapilogonx.
+    MOVE 'X' TO bapilogonx-class.
+    REFRESH wt_return.
+*                                 /- change Internet user
+    CALL FUNCTION 'BAPI_USER_CHANGE'
+       destination 'DE2_001'
+         EXPORTING
+              username   = bapibname-bapibname
+              defaults   = bapidefaul
+              defaultsx  = bapidefax
+              logondata  = bapilogond
+              logondatax = bapilogonx
+         TABLES
+              return     = wt_return.
+    CLEAR wf_error.
+    LOOP AT wt_return.
+      IF wt_return-type CO 'EA'.
+        MESSAGE ID wt_return-id
+                TYPE wt_return-type
+                NUMBER wt_return-number
+                WITH wt_return-message_v1
+                     wt_return-message_v2
+                     wt_return-message_v3
+                     wt_return-message_v4.
+        wf_error = 'X'.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    IF NOT wf_error IS INITIAL.
+      ROLLBACK WORK.
+    ENDIF.
+*                                 /- set the password
+    CALL FUNCTION 'SUSR_USER_CHANGE_PASSWORD_RFC'
+       destination 'DE2_001'
+         EXPORTING
+              bname                = bapibname-bapibname
+              password             = wc_fstpw
+              new_password         = zzvsu_0200-password
+         EXCEPTIONS
+              change_not_allowed   = 1
+              password_not_allowed = 2
+              internal_error       = 3
+              canceled_by_user     = 4
+              OTHERS               = 5.
+    IF sy-subrc <> 0.
+      ROLLBACK WORK.
+      CASE sy-subrc.
+        WHEN 2.
+          MESSAGE e909(zi).
+        WHEN OTHERS.
+          MESSAGE e910(zi).
+      ENDCASE.
+    ENDIF.
+*                                 /- change time in usr02
+    PERFORM reset_password_time USING bapibname-bapibname.
+*                                 /- update user parameters
+    CLEAR zzvsiu.
+    zzvsiu-bname      = bapibname-bapibname.
+    zzvsiu-grouplinks = zzvsu_0200-grouplinks.
+    zzvsiu-clogo      = zzvsu_0200-clogo.
+    MODIFY zzvsiu.
+    IF sy-subrc <> 0.
+      MESSAGE e911(zi).
+      ROLLBACK WORK.
+    ENDIF.
+*                                 /- contractual user type
+*$    CLEAR usr06.
+*$    usr06-bname    = bapibname-bapibname.
+*$    usr06-lic_type = 'Z1'.
+*$    INSERT usr06.
+*
+  ENDIF.
+ENDFORM.                    " create_internet_user
+*&---------------------------------------------------------------------*
+*&      Module  SET_TC_ATTRIBUTES  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE set_tc_attributes OUTPUT.
+  PERFORM set_tc_attributes.
+ENDMODULE.                 " SET_TC_ATTRIBUTES  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  PROCESS_LINE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE process_line INPUT.
+*                                 /- if 1st = sold-to, 2nd = ship-to
+  IF wt_zzvsup-parv1 =  'SP' AND
+     wt_zzvsup-parv2 <> 'SH'.
+    MESSAGE e925(zi).
+  ENDIF.
+*                                 /- if 1st = ship-to => error
+  IF wt_zzvsup-parv1 =  'SH'.
+    MESSAGE e928(zi).
+  ENDIF.
+*                                 /- if 1st = agent, 2nd = sold-to
+  IF wt_zzvsup-parv1 =  'ZA' AND
+     wt_zzvsup-parv2 <> 'SP'.
+    MESSAGE e926(zi).
+  ENDIF.
+
+  PERFORM get_partner_info USING wt_zzvsup-parv1
+                                 wt_zzvsup-kund1
+                           CHANGING wt_zzvsup-name1.
+  PERFORM get_partner_info USING wt_zzvsup-parv2
+                                 wt_zzvsup-kund2
+                           CHANGING wt_zzvsup-name2.
+  MODIFY wt_zzvsup INDEX cg_zzvsup-current_line.
+*                                 /- if the line is selected => msg
+  IF NOT wf_selpa IS INITIAL.
+    wi_selpa = cg_zzvsup-current_line.
+  ENDIF.
+ENDMODULE.                 " PROCESS_LINE  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  display_line  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE display_line OUTPUT.
+*                                 /- change line attributes
+  CASE wc_opera.
+    WHEN 'DISP' OR
+         'CHPW'.
+      LOOP AT SCREEN.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDLOOP.
+  ENDCASE.
+*                                 /- read current line
+  READ TABLE wt_zzvsup INDEX cg_zzvsup-current_line.
+  IF sy-subrc <> 0.
+    EXIT FROM STEP-LOOP.
+  ENDIF.
+ENDMODULE.                 " display_line  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Form  get_partner_info
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_WT_ZZVSUP_PARV1  text
+*      -->P_WT_ZZVSUP_KUND1  text
+*      <--P_WT_ZZVSUP_NAME1  text
+*----------------------------------------------------------------------*
+FORM get_partner_info USING    value(p_parv1)
+                               value(p_kund1)
+                      CHANGING p_name1.
+  IF p_kund1 IS INITIAL.
+    p_name1 = 'ALL'(001).
+    EXIT.
+  ELSE.
+*                                 /- clear first partner name
+    CLEAR p_name1.
+  ENDIF.
+  PERFORM search_table_for_partner_funct USING p_parv1
+                                         CHANGING w$_entab.
+  CASE w$_entab.
+*                                 /- if customer
+    WHEN 'KNA1'.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+           EXPORTING
+                input  = p_kund1
+           IMPORTING
+                output = w$_kunnr.
+      CLEAR kna1.
+      SELECT SINGLE * FROM  kna1 CLIENT SPECIFIED
+             WHERE  mandt  = sy-mandt
+             AND    kunnr  = w$_kunnr.
+      IF sy-subrc <> 0.
+        MESSAGE e907(zi) WITH w$_kunnr.
+      ELSE.
+        MOVE kna1-name1 TO p_name1.
+      ENDIF.
+*                                 /- if vendor
+    WHEN 'LFA1'.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+           EXPORTING
+                input  = p_kund1
+           IMPORTING
+                output = w$_lifnr.
+      CLEAR lfa1.
+      SELECT SINGLE * FROM  lfa1 CLIENT SPECIFIED
+             WHERE  mandt  = sy-mandt
+             AND    lifnr  = w$_lifnr.
+      IF sy-subrc <> 0.
+        MESSAGE e908(zi) WITH w$_kunnr.
+      ELSE.
+        MOVE lfa1-name1 TO p_name1.
+      ENDIF.
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.                    " get_partner_info
+*&---------------------------------------------------------------------*
+*&      Form  FILL_PARTNERS_FOR_THIS_USER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_partners_for_this_user.
+  DELETE FROM zzvsup WHERE bname = bapibname-bapibname.
+  CLEAR wt_zzvsup.
+  CLEAR wc_syerr.
+  LOOP AT wt_zzvsup.
+    CLEAR zzvsup.
+    MOVE-CORRESPONDING wt_zzvsup TO zzvsup.
+*                                 /- partner number conversion
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+         EXPORTING
+              input  = zzvsup-kund1
+         IMPORTING
+              output = zzvsup-kund1.
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+         EXPORTING
+              input  = zzvsup-kund2
+         IMPORTING
+              output = zzvsup-kund2.
+*                                 /- partner function conversion
+    CALL FUNCTION 'CONVERSION_EXIT_PARVW_INPUT'
+         EXPORTING
+              input  = wt_zzvsup-parv1
+         IMPORTING
+              output = w$_parv1.
+    MOVE w$_parv1 TO zzvsup-parv1.
+    CALL FUNCTION 'CONVERSION_EXIT_PARVW_INPUT'
+         EXPORTING
+              input  = wt_zzvsup-parv2
+         IMPORTING
+              output = w$_parv1.
+    MOVE w$_parv1 TO zzvsup-parv2.
+    zzvsup-bname = bapibname-bapibname.
+    INSERT zzvsup.
+    IF sy-subrc = 0.
+*                                 /- entry in T946F for R/2 extraction
+      IF sy-sysid = 'PRS'.
+*<<< First Upload flag in #Ventes 'N' only for new customers-LBH 170702
+*<<< Begin of insertion
+        CALL FUNCTION 'Z_ZV_UPDATE_T946F'
+             DESTINATION 'APA1CIC9'
+             EXPORTING
+                     flagx = ' '
+                     ktnra = zzvsup-kund1+2(8)
+                     updat = ' ' " Check first if cust. exist in R2
+             IMPORTING
+                     name1 = w$_name1
+                     subrc = w$_subr2
+             EXCEPTIONS
+                     system_failure        = 1
+                     communication_failure = 2.
+* create only new customers...
+        IF w$_subr2 <> 0.         .             ." Cust. does not exist
+* put flag to 'N' to force First upload of orders in R2
+          CALL FUNCTION 'Z_ZV_UPDATE_T946F'
+               DESTINATION 'APA1CIC9'
+               EXPORTING
+                       flagx = 'N'
+                       ktnra = zzvsup-kund1+2(8)
+                       updat = 'X'
+               IMPORTING
+                       name1 = w$_name1
+                       subrc = w$_subr2
+               EXCEPTIONS
+                       system_failure        = 1
+                       communication_failure = 2.
+          IF sy-subrc <> 0.
+            MOVE 'Euroventes' TO wc_syerr.
+          ENDIF.
+*        ELSE.
+*         customer already exist -> do nothing
+        ENDIF.
+* Remove old creation for ALL customers
+*        CALL FUNCTION 'Z_ZV_UPDATE_T946F'
+*             DESTINATION 'APA1CIC9'
+*             EXPORTING
+*                     flagx = p_flag
+*                     ktnra = zzvsup-kund1+2(8)
+*                     updat = 'X'
+*             IMPORTING
+*                     name1 = w$_name1
+*                     subrc = w$_subr2
+*             EXCEPTIONS
+*                     system_failure        = 1
+*                     communication_failure = 2.
+*        IF sy-subrc <> 0.
+*          MOVE 'Euroventes' TO wc_syerr.
+*        ENDIF.
+*>>> end of Insertion                                       -LBH 170702
+
+*                                 /- entry in ZZVS_CUST for FOCUS extr.
+        CALL FUNCTION 'Z_ZV_UPDATE_ZZVS_CUST'
+            DESTINATION 'PF1_020'
+          EXPORTING
+            kunnr                     = zzvsup-kund1
+          EXCEPTIONS
+                system_failure        = 1
+                communication_failure = 2.
+        IF sy-subrc <> 0.
+          MOVE 'ERP Solvay' TO wc_syerr.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+  IF NOT wc_syerr IS INITIAL.
+    MESSAGE i930(zi) WITH wc_syerr.
+  ENDIF.
+ENDFORM.                    " FILL_PARTNERS_FOR_THIS_USER
+*&---------------------------------------------------------------------*
+*&      Form  logged_user_get_detail
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM logged_user_get_detail.
+  CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+       EXPORTING
+            username       = sy-uname
+       TABLES
+            activitygroups = wt_rbapi
+            return         = wt_return.
+*                                 /- save roles
+  REFRESH wt_roles.
+  LOOP AT wt_rbapi.
+*                                 /- only roles starting with ZZV-ITCD
+    CHECK wt_rbapi-agr_name CP 'ZZV-IHIER-+-CD*'.
+    SELECT        * FROM  agr_agrs CLIENT SPECIFIED
+           WHERE  mandt     = sy-mandt
+           AND    agr_name  = wt_rbapi-agr_name.
+      CLEAR agr_texts.
+      SELECT SINGLE * FROM  agr_texts CLIENT SPECIFIED
+             WHERE  mandt     = sy-mandt
+             AND    agr_name  = agr_agrs-child_agr
+             AND    spras     = 'E'
+*            AND    spras     = sy-langu
+             AND    line      = ' '.
+      CLEAR wt_roles.
+      MOVE agr_agrs-child_agr TO wt_roles-agr_name.
+      MOVE agr_texts-text     TO wt_roles-agr_text.
+      wt_roles-autho = 'X'.
+      APPEND wt_roles.
+    ENDSELECT.
+  ENDLOOP.
+ENDFORM.                    " logged_user_get_detail
+*&---------------------------------------------------------------------*
+*&      Module  process_line_role  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE process_line_role INPUT.
+  IF ok_code = 'PICK'.
+    PERFORM display_role_details.
+  ELSE.
+*                                 /- if the line is selected
+*    IF NOT wf_selec IS INITIAL OR
+*       wt_roles-autho IS INITIAL.
+*      CLEAR wt_newro.
+*      MOVE-CORRESPONDING wt_roles TO wt_newro.
+*      APPEND wt_newro.
+*      IF NOT wf_selec IS INITIAL.
+*        ADD 1 TO wb_rolse.
+*      ENDIF.
+*    ENDIF.
+    IF NOT wf_selec IS INITIAL.
+      wt_roles-selec = 'X'.
+    ELSE.
+      wt_roles-selec = ' '.
+    ENDIF.
+    MODIFY wt_roles INDEX cg_roles-current_line
+                    TRANSPORTING selec.
+  ENDIF.
+ENDMODULE.                 " process_line_role  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  save_user_s_roles
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM save_user_s_roles.
+  CHECK wf_isccs IS INITIAL.
+  REFRESH wt_return.
+  CLEAR wt_newro.
+  READ TABLE wt_newro WITH KEY agr_name = 'ZZS-BAS-ALL'.
+  IF sy-subrc <> 0.
+    wt_newro-agr_name = 'ZZS-BAS-ALL'.
+    APPEND wt_newro.
+  ENDIF.
+*
+  data: begin of wt_BAPILOCAGR occurs 0.
+          include structure BAPILOCAGR.
+  data: end of wt_BAPILOCAGR.
+  refresh wt_BAPILOCAGR.
+  loop at wt_newro.
+    clear wt_BAPILOCAGR.
+    move-corresponding wt_newro to wt_BAPILOCAGR.
+    move 'DE2_040'              to wt_BAPILOCAGR-subsystem.
+    append wt_BAPILOCAGR.
+  endloop.
+* CALL FUNCTION 'BAPI_USER_ACTGROUPS_ASSIGN'
+  call function 'BAPI_USER_LOCACTGROUPS_ASSIGN'
+       destination 'DE2_001'
+       EXPORTING
+            username       = bapibname-bapibname
+       TABLES
+            activitygroups = wt_BAPILOCAGR
+            return         = wt_return.
+ENDFORM.                    " save_user_s_roles
+*&---------------------------------------------------------------------*
+*&      Module  back_to_first_screen  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE back_to_first_screen INPUT.
+  CASE ok_code.
+    WHEN 'BACK'.
+      CASE wc_opera.
+        WHEN 'CHAN' OR
+             'CHPW'.
+          PERFORM user_dequeue USING zzvsu_0100-bname.
+      ENDCASE.
+      LEAVE TO SCREEN 100.
+  ENDCASE.
+ENDMODULE.                 " back_to_first_screen  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  check_role_selection  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE check_role_selection INPUT.
+  REFRESH wt_newro.
+  CLEAR wb_rolse.
+  CHECK ok_code = 'SAVE'.
+  LOOP AT wt_roles.
+    IF NOT wt_roles-selec IS INITIAL OR
+       wt_roles-autho IS INITIAL.
+      CLEAR wt_newro.
+      MOVE-CORRESPONDING wt_roles TO wt_newro.
+      APPEND wt_newro.
+    ENDIF.
+    IF NOT wt_roles-selec IS INITIAL.
+      ADD 1 TO wb_rolse.
+    ENDIF.
+  ENDLOOP.
+* DESCRIBE TABLE wt_newro LINES wb_lines.
+* IF wb_lines IS INITIAL.
+  IF wb_rolse IS INITIAL.
+    MESSAGE i905(zi).
+*   SET SCREEN 200.
+*   LEAVE SCREEN.
+  ENDIF.
+ENDMODULE.                 " check_role_selection  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  check_partner_selection  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE check_partner_selection INPUT.
+  CHECK ok_code = 'SAVE'.
+  DESCRIBE TABLE wt_zzvsup LINES wb_lines.
+  IF wb_lines IS INITIAL.
+    MESSAGE s906(zi).
+    SET SCREEN 200.
+    LEAVE SCREEN.
+  ENDIF.
+ENDMODULE.                 " check_partner_selection  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  display_possible_partners_1  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE display_possible_partners_1 INPUT.
+  PERFORM display_possible_partners USING 'WT_ZZVSUP-PARV1'
+                                          'WT_ZZVSUP-KUND1'.
+ENDMODULE.                 " display_possible_partners_1  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  display_possible_partners_2  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE display_possible_partners_2 INPUT.
+  PERFORM display_possible_partners USING 'WT_ZZVSUP-PARV2'
+                                          'WT_ZZVSUP-KUND2'.
+ENDMODULE.                 " display_possible_partners_2  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  SEARCH_TABLE_FOR_PARTNER_FUNCT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_PARV1  text
+*      <--P_ENTAB  text
+*----------------------------------------------------------------------*
+FORM search_table_for_partner_funct USING    p_parv1
+                                    CHANGING p_entab.
+*                                 /- partner function conversion
+  CALL FUNCTION 'CONVERSION_EXIT_PARVW_INPUT'
+       EXPORTING
+            input  = p_parv1
+       IMPORTING
+            output = w$_parv1.
+*                                 /- business partner function
+  CLEAR tpar.
+  SELECT SINGLE * FROM  tpar CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt
+         AND    parvw  = w$_parv1.
+*                                 /- partner type (type of partner)
+  CLEAR tvpa.
+  SELECT SINGLE * FROM  tvpa CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt
+         AND    nrart  = tpar-nrart.
+  p_entab = tvpa-entab.
+ENDFORM.                    " SEARCH_TABLE_FOR_PARTNER_FUNCT
+*&---------------------------------------------------------------------*
+*&      Form  display_possible_partners
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_0918   text
+*      -->P_0919   text
+*----------------------------------------------------------------------*
+FORM display_possible_partners USING    value(p_parv1)
+                                        value(p_kund1).
+  REFRESH scr_fields.
+  scr_fields-fieldname = p_parv1.
+  APPEND scr_fields.
+  CALL FUNCTION 'DYNP_VALUES_READ'
+       EXPORTING
+            dyname               = 'ZZVS2_USER_MANAGEMENT'
+            dynumb               = sy-dynnr
+       TABLES
+            dynpfields           = scr_fields
+       EXCEPTIONS
+            invalid_abapworkarea = 1
+            invalid_dynprofield  = 2
+            invalid_dynproname   = 3
+            invalid_dynpronummer = 4
+            invalid_request      = 5
+            no_fielddescription  = 6
+            invalid_parameter    = 7
+            undefind_error       = 8
+            double_conversion    = 9
+            stepl_not_found      = 10
+            OTHERS               = 11.
+  CHECK sy-subrc = 0.
+  READ TABLE scr_fields INDEX 1.
+  PERFORM search_table_for_partner_funct USING scr_fields-fieldvalue
+                                         CHANGING w$_entab.
+  CASE w$_entab.
+*                                 /- if customer
+    WHEN 'KNA1'.
+      h_shlpname = 'DEBI'.
+*                                 /- if vendor
+    WHEN 'LFA1'.
+      h_shlpname = 'KRED'.
+    WHEN OTHERS.
+      CLEAR h_shlpname.
+  ENDCASE.
+  IF NOT h_shlpname IS INITIAL.
+*                                 /- search te SH description
+    CALL FUNCTION 'F4IF_GET_SHLP_DESCR'
+         EXPORTING
+              shlpname = h_shlpname
+         IMPORTING
+              shlp     = h_shlp
+         EXCEPTIONS
+              OTHERS   = 0.
+    CHECK sy-subrc EQ 0.
+    CASE  h_shlpname.
+      WHEN 'DEBI'.
+        READ TABLE h_shlp-fieldprop
+                          WITH KEY fieldname = 'BUKRS'
+                          INTO l_fieldprop.
+        CLEAR l_fieldprop-shlpoutput.
+        MODIFY h_shlp-fieldprop FROM l_fieldprop INDEX sy-tabix.
+        READ TABLE h_shlp-interface
+                          WITH KEY shlpfield = 'KUNNR'
+                          INTO l_interface.
+        MOVE 'PARNR' TO l_interface-valfield.
+        MODIFY h_shlp-interface FROM l_interface INDEX sy-tabix.
+      WHEN 'KRED'.
+        READ TABLE h_shlp-fieldprop
+                          WITH KEY fieldname = 'BUKRS'
+                          INTO l_fieldprop.
+        CLEAR l_fieldprop-shlpoutput.
+        MODIFY h_shlp-fieldprop FROM l_fieldprop INDEX sy-tabix.
+        READ TABLE h_shlp-interface
+                          WITH KEY shlpfield = 'LIFNR'
+                          INTO l_interface.
+        MOVE 'PARNR' TO l_interface-valfield.
+        MODIFY h_shlp-interface FROM l_interface INDEX sy-tabix.
+      WHEN 'PREMN'.
+        READ TABLE h_shlp-interface
+                          WITH KEY shlpfield = 'PERNR'
+                          INTO l_interface.
+        MOVE 'PARNR' TO l_interface-valfield.
+        MODIFY h_shlp-interface FROM l_interface INDEX sy-tabix.
+    ENDCASE.
+*                                 /- display SH dialog
+    CALL FUNCTION 'F4_SEARCH_HELP'
+         EXPORTING
+              shlp                = h_shlp
+              call_control        = h_call_control
+         TABLES
+              flds_out_tab        = l_flds_out_tab
+         EXCEPTIONS
+              user_cancel         = 1
+              no_data_found       = 2
+              internal_error      = 3
+              not_yet_implemented = 4
+              OTHERS              = 5.
+    CHECK sy-subrc EQ 0.
+    CASE  h_shlpname.
+      WHEN 'DEBI'.
+        READ TABLE l_flds_out_tab WITH KEY fieldname = 'KUNNR'.
+        MOVE l_flds_out_tab-fieldval TO w$_parnr.
+      WHEN 'KRED'.
+        READ TABLE l_flds_out_tab WITH KEY fieldname = 'LIFNR'.
+        MOVE l_flds_out_tab-fieldval TO w$_parnr.
+      WHEN 'PREMN'.
+        READ TABLE l_flds_out_tab WITH KEY fieldname = 'PERNR'.
+        MOVE l_flds_out_tab-fieldval TO w$_parnr.
+    ENDCASE.
+  ENDIF.
+*                                 /- send the result to the screen
+  REFRESH scr_fields.
+  scr_fields-fieldname  = p_kund1.
+  scr_fields-fieldvalue = w$_parnr.
+  APPEND scr_fields.
+  CALL FUNCTION 'DYNP_VALUES_UPDATE'
+       EXPORTING
+            dyname               = 'ZZVS2_USER_MANAGEMENT'
+            dynumb               = sy-dynnr
+       TABLES
+            dynpfields           = scr_fields
+       EXCEPTIONS
+            invalid_abapworkarea = 1
+            invalid_dynprofield  = 2
+            invalid_dynproname   = 3
+            invalid_dynpronummer = 4
+            invalid_request      = 5
+            no_fielddescription  = 6
+            undefind_error       = 7
+            OTHERS               = 8.
+ENDFORM.                    " display_possible_partners
+*&---------------------------------------------------------------------*
+*&      Module  f4_alias  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_alias INPUT.
+
+  DATA: BEGIN OF alias_tab   OCCURS 0  ,
+          useralias LIKE usrefus-useralias,
+        END OF alias_tab.
+* DATA: scr_fields like table of DYNPREAD   with header line.
+  DATA: field_tab  LIKE TABLE OF dfies      WITH HEADER LINE.
+  DATA: return_tab LIKE TABLE OF ddshretval WITH HEADER LINE.
+
+  CLEAR: scr_fields, scr_fields[], field_tab[], alias_tab[].
+
+  scr_fields-fieldname = 'ZZVSU_0100-USERALIAS'.
+  APPEND scr_fields.
+
+  CALL FUNCTION 'DYNP_VALUES_READ'
+       EXPORTING
+            dyname               = 'ZZVS2_USER_MANAGEMENT'
+            dynumb               = sy-dynnr
+            translate_to_upper   = 'X'
+       TABLES
+            dynpfields           = scr_fields
+       EXCEPTIONS
+            invalid_abapworkarea = 1
+            invalid_dynprofield  = 2
+            invalid_dynproname   = 3
+            invalid_dynpronummer = 4
+            invalid_request      = 5
+            no_fielddescription  = 6
+            invalid_parameter    = 7
+            undefind_error       = 8
+            double_conversion    = 9
+            stepl_not_found      = 10
+            OTHERS               = 11.
+  IF sy-subrc <> 0.
+*   MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*           WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+  READ TABLE scr_fields WITH KEY fieldname = 'USREFUS-USERALIAS'.
+  IF sy-subrc = 0.
+    TRANSLATE scr_fields-fieldvalue USING '*%?+'.
+    SELECT useralias FROM usrefus
+                 APPENDING CORRESPONDING FIELDS OF TABLE alias_tab
+                 WHERE   useralias <> space
+                   AND   useralias LIKE scr_fields-fieldvalue
+                 ORDER BY useralias.
+  ENDIF.
+  IF sy-subrc NE 0. "Test gilt für beide Befehle (READ und SELECT)
+    SELECT useralias FROM usrefus
+                 APPENDING CORRESPONDING FIELDS OF TABLE alias_tab
+                 WHERE   useralias <> space
+                 ORDER BY useralias.
+  ENDIF.
+
+  field_tab-tabname   = 'USREFUS'.
+  field_tab-fieldname = 'USERALIAS'.
+  APPEND field_tab.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+       EXPORTING
+            ddic_structure  = 'BAPIALIAS'
+            retfield        = 'USERALIAS'
+            dynpprog        = 'ZZVS2_USER_MANAGEMENT'
+            dynpnr          = sy-dynnr
+            dynprofield     = 'zzvsu_0100-useralias'
+       TABLES
+            value_tab       = alias_tab
+            field_tab       = field_tab
+            return_tab      = return_tab
+       EXCEPTIONS
+            parameter_error = 1
+            no_values_found = 2
+            OTHERS          = 3.
+  IF sy-subrc <> 0.
+*   MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*           WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+*
+  CLEAR: scr_fields, scr_fields[].
+  READ TABLE return_tab INDEX 1.
+  IF sy-subrc = 0.
+    scr_fields-fieldname = 'ZZVSU_0100-USERALIAS'.
+    scr_fields-fieldvalue = return_tab-fieldval.
+    APPEND scr_fields.
+    scr_fields-fieldname  = 'ZZVSU_0100-BNAME'.
+    SELECT SINGLE bname FROM usrefus INTO scr_fields-fieldvalue
+      WHERE useralias = return_tab-fieldval.
+    IF sy-subrc <> 0.
+      CLEAR scr_fields-fieldvalue.
+    ENDIF.
+    APPEND scr_fields.
+    CALL FUNCTION 'DYNP_VALUES_UPDATE'
+         EXPORTING
+              dyname               = 'ZZVS2_USER_MANAGEMENT'
+              dynumb               = sy-dynnr
+         TABLES
+              dynpfields           = scr_fields
+         EXCEPTIONS
+              invalid_abapworkarea = 1
+              invalid_dynprofield  = 2
+              invalid_dynproname   = 3
+              invalid_dynpronummer = 4
+              invalid_request      = 5
+              no_fielddescription  = 6
+              undefind_error       = 7
+              OTHERS               = 8.
+    IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " f4_alias  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  read_internet_user_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM read_internet_user_data.
+  DATA: wg_bapiaddr3 LIKE bapiaddr3.
+*                                 /- is not a CCS
+  CLEAR wf_isccs.
+  CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+       EXPORTING
+            username       = zzvsu_0100-bname
+       IMPORTING
+            defaults       = bapidefaul
+            logondata      = bapilogond
+            address        = bapiaddr3
+       TABLES
+            activitygroups = wt_rbapi
+            return         = wt_return.
+*
+  CLEAR usr02.
+  SELECT SINGLE * FROM  usr02 CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt
+         AND    bname  = zzvsu_0100-bname.
+*                                 /- who is the last modifier?
+  CLEAR usr04.
+  CLEAR wg_bapiaddr3.
+  SELECT SINGLE * FROM  usr04 CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt
+         AND    bname  = zzvsu_0100-bname.
+  IF sy-subrc = 0.
+    CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+         EXPORTING
+              username = usr04-modbe
+         IMPORTING
+              address  = wg_bapiaddr3
+         TABLES
+              return   = wt_return.
+  ENDIF.
+  CONCATENATE wg_bapiaddr3-firstname
+              wg_bapiaddr3-lastname
+              INTO zzvsu_0200-mname SEPARATED BY ' '.
+*                                 /- save roles
+  REFRESH wt_iroles.
+  LOOP AT wt_rbapi.
+*                                 /- is a CCS
+    IF wt_rbapi-agr_name = 'ZZV-IUSR-SB'.
+      wf_isccs = 'X'.
+    ENDIF.
+    CLEAR wt_iroles.
+    MOVE-CORRESPONDING wt_rbapi TO wt_iroles.
+    APPEND wt_iroles.
+  ENDLOOP.
+*                                 /- personal data
+  MOVE-CORRESPONDING bapiaddr3  TO zzvsu_0200.
+  MOVE-CORRESPONDING bapidefaul TO zzvsu_0200.
+  MOVE-CORRESPONDING bapilogond TO zzvsu_0200.
+*                                 /- relationships with bus. partners
+  REFRESH wt_zzvsup.
+  SELECT        * FROM  zzvsup CLIENT SPECIFIED
+         WHERE  mandt  = sy-mandt
+         AND    bname  = zzvsu_0100-bname.
+    CLEAR wt_zzvsup.
+    MOVE-CORRESPONDING zzvsup TO wt_zzvsup.
+*                                 /- partner function conversion
+    CALL FUNCTION 'CONVERSION_EXIT_PARVW_OUTPUT'
+         EXPORTING
+              input  = wt_zzvsup-parv1
+         IMPORTING
+              output = wt_zzvsup-parv1.
+    CALL FUNCTION 'CONVERSION_EXIT_PARVW_OUTPUT'
+         EXPORTING
+              input  = wt_zzvsup-parv2
+         IMPORTING
+              output = wt_zzvsup-parv2.
+    PERFORM get_partner_info USING wt_zzvsup-parv1
+                                   wt_zzvsup-kund1
+                             CHANGING wt_zzvsup-name1.
+    PERFORM get_partner_info USING wt_zzvsup-parv2
+                                   wt_zzvsup-kund2
+                             CHANGING wt_zzvsup-name2.
+    APPEND wt_zzvsup.
+*                                 /- Internet user parameters
+    CLEAR zzvsiu.
+    SELECT SINGLE * FROM  zzvsiu CLIENT SPECIFIED
+       WHERE  mandt  = sy-mandt
+       AND    bname  = zzvsu_0100-bname.
+    MOVE-CORRESPONDING zzvsiu TO zzvsu_0200.
+  ENDSELECT.
+
+ENDFORM.                    " read_internet_user_data
+*&---------------------------------------------------------------------*
+*&      Form  process_error_table
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_WT_RETURN  text
+*      <--P_W$_SUBRC  text
+*----------------------------------------------------------------------*
+FORM process_error_table TABLES   pt_return STRUCTURE bapiret2
+                         CHANGING p$_subrc.
+  CLEAR p$_subrc.
+  LOOP AT pt_return.
+    IF pt_return-type CO 'EA'.
+      p$_subrc = 8.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.                    " process_error_table
+*&---------------------------------------------------------------------*
+*&      Module  display_line_role  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE display_line_role OUTPUT.
+*                                 /- read current line
+  READ TABLE wt_roles INDEX cg_roles-current_line.
+  IF sy-subrc <> 0.
+    EXIT FROM STEP-LOOP.
+  ELSE.
+    wc_icon  = 'ICON_LED_GREEN'.
+    wl_qinfo = 'Role selectable'(011).
+    IF NOT wt_roles-selec IS INITIAL.
+      wf_selec = 'X'.
+    ELSE.
+      wf_selec = ' '.
+    ENDIF.
+    IF wt_roles-autho IS INITIAL OR
+       NOT wf_isccs IS INITIAL.
+      wf_selec = ' '.
+*                                 /- change line attributes
+      CASE wc_opera.
+        WHEN 'CHAN'.
+          LOOP AT SCREEN.
+            screen-input = 0.
+            screen-intensified = 0.
+            MODIFY SCREEN.
+          ENDLOOP.
+          wc_icon  = 'ICON_LOCKED'.
+          wl_qinfo = 'Role already contained in user profile'(010).
+      ENDCASE.
+    ENDIF.
+    CALL FUNCTION 'ICON_CREATE'
+         EXPORTING
+              name                  = wc_icon
+              text                  = ' '
+              info                  = wl_qinfo
+              add_stdinf            = 'X'
+         IMPORTING
+              result                = wt_roles-icon
+         EXCEPTIONS
+              icon_not_found        = 1
+              outputfield_too_short = 2
+              OTHERS                = 3.
+  ENDIF.
+ENDMODULE.                 " display_line_role  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Form  merge_roles
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM merge_roles.
+*                                 /- scan roles of connected user
+  LOOP AT wt_roles.
+*                                 /- if this role assigned to inet usr
+    READ TABLE wt_iroles WITH KEY wt_roles-agr_name.
+    IF sy-subrc = 0.
+*                                 /- role assigned
+      MOVE 'X' TO wt_roles-selec.
+    ENDIF.
+*                                 /- role selectable
+    MOVE 'X' TO wt_roles-autho.
+    MODIFY wt_roles.
+  ENDLOOP.
+*                                 /- scan roles of inet user
+  LOOP AT wt_iroles.
+*                                 /- if this role not assig to con usr
+    READ TABLE wt_roles WITH KEY wt_iroles-agr_name.
+    IF sy-subrc <> 0.
+      CLEAR wt_roles.
+      MOVE-CORRESPONDING wt_iroles TO wt_roles.
+*                                 /- role added but not selectable
+      MOVE ' ' TO wt_roles-autho.
+      MOVE 'X' TO wt_roles-selec.
+      APPEND wt_roles.
+    ENDIF.
+  ENDLOOP.
+  SORT wt_roles BY agr_text.
+ENDFORM.                    " merge_roles
+*&---------------------------------------------------------------------*
+*&      Form  change_internet_user
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM change_internet_user.
+  COMMIT WORK.
+  CLEAR: bapialiasx,
+         bapialias.
+*                                 /- search for the userid
+  CALL FUNCTION 'SUSR_USER_BNAME_FROM_ALIAS'
+       EXPORTING
+            alias          = zzvsu_0200-useralias
+       IMPORTING
+            bname          = bapibname-bapibname
+       EXCEPTIONS
+            no_bname_found = 1.
+*                                 /- if alias not filled
+  IF sy-subrc = 1.
+    bapibname-bapibname = zzvsu_0100-bname.
+    bapialias-useralias = zzvsu_0200-useralias.
+    bapialiasx-bapialias = 'X'.
+  ELSE.
+    IF bapibname-bapibname <> zzvsu_0100-bname.
+      MESSAGE e914(zi) WITH bapibname-bapibname.
+    ENDIF.
+  ENDIF.
+
+  CLEAR: bapiaddr3,
+         bapidefaul,
+         bapilogond.
+*
+  MOVE-CORRESPONDING zzvsu_0200 TO bapiaddr3.
+  MOVE-CORRESPONDING zzvsu_0200 TO bapidefaul.
+* MOVE-CORRESPONDING zzvsu_0200 TO bapilogond.
+  REFRESH wt_return.
+*                                 /- user name, phone, e-mail
+  CLEAR bapiaddr3x.
+  MOVE 'X' TO:
+         bapiaddr3x-title_p,
+         bapiaddr3x-firstname,
+         bapiaddr3x-lastname,
+         bapiaddr3x-tel1_numbr,
+         bapiaddr3x-e_mail.
+*                                 /- user language
+  CLEAR bapidefax.
+  MOVE 'X' TO:
+         bapidefax-langu.
+*                                 /- user group
+* CLEAR bapilogonx.
+* MOVE 'X' TO:
+*        bapilogonx-class.
+*                                 /- change Internet user
+  CALL FUNCTION 'BAPI_USER_CHANGE'
+       EXPORTING
+            username   = bapibname-bapibname
+            address    = bapiaddr3
+            addressx   = bapiaddr3x
+            alias      = bapialias
+            aliasx     = bapialiasx
+            defaults   = bapidefaul
+            defaultsx  = bapidefax
+*           logondata  = bapilogond
+*           logondatax = bapilogonx
+       TABLES
+            return     = wt_return.
+  CLEAR wf_error.
+  LOOP AT wt_return.
+    IF wt_return-type CO 'EA'.
+      MESSAGE ID wt_return-id
+              TYPE wt_return-type
+              NUMBER wt_return-number
+              WITH wt_return-message_v1
+                   wt_return-message_v2
+                   wt_return-message_v3
+                   wt_return-message_v4.
+      wf_error = 'X'.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+  IF wf_error IS INITIAL.
+    zzvsu_0100-useralias = zzvsu_0200-useralias.
+    MESSAGE s912(zi) WITH zzvsu_0200-useralias.
+*                                 /- update user parameters
+    CLEAR zzvsiu.
+    SELECT SINGLE * FROM  zzvsiu CLIENT SPECIFIED
+           WHERE  mandt  = sy-mandt
+           AND    bname  = bapibname-bapibname.
+    IF sy-subrc <> 0.
+      zzvsiu-flag = 'X'.
+      zzvsiu-bname      = bapibname-bapibname.
+      zzvsiu-grouplinks = zzvsu_0200-grouplinks.
+      zzvsiu-clogo      = zzvsu_0200-clogo.
+      INSERT zzvsiu.
+      IF sy-subrc <> 0.
+        MESSAGE e911(zi).
+        ROLLBACK WORK.
+      ENDIF.
+    ELSE.
+      zzvsiu-bname      = bapibname-bapibname.
+      zzvsiu-grouplinks = zzvsu_0200-grouplinks.
+      zzvsiu-clogo      = zzvsu_0200-clogo.
+      MODIFY zzvsiu.
+      IF sy-subrc <> 0.
+        MESSAGE e911(zi).
+        ROLLBACK WORK.
+      ENDIF.
+    ENDIF.
+*
+  ENDIF.
+ENDFORM.                    " change_internet_user
+*&---------------------------------------------------------------------*
+*&      Form  delete_user_s_roles
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM delete_user_s_roles.
+  CHECK wf_isccs IS INITIAL.
+  REFRESH wt_return.
+  CALL FUNCTION 'BAPI_USER_ACTGROUPS_DELETE'
+       EXPORTING
+            username = bapibname-bapibname
+       TABLES
+            return   = wt_return.
+ENDFORM.                    " delete_user_s_roles
+*&---------------------------------------------------------------------*
+*&      Form  user_enqueue
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM user_enqueue USING    p_user_name rc.
+  CALL FUNCTION 'ENQUEUE_E_USR04'
+       EXPORTING
+            bname          = p_user_name
+       EXCEPTIONS
+            foreign_lock   = 1
+            system_failure = 2.
+  rc = sy-subrc.
+ENDFORM.                               " user_enqueue
+*&---------------------------------------------------------------------*
+*&      Form  USER_DEQUEUE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_USERNAME  text                                             *
+*      -->P_ADDRESS  text                                              *
+*----------------------------------------------------------------------*
+FORM user_dequeue USING    p_user_name.
+  CALL FUNCTION 'DEQUEUE_E_USR04'
+       EXPORTING
+            bname = p_user_name.
+ENDFORM.                               " USER_DEQUEUE
+*&---------------------------------------------------------------------*
+*&      Form  change_password
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM change_password.
+  COMMIT WORK.
+*
+  CLEAR bapiaddr3.
+  MOVE-CORRESPONDING zzvsu_0200 TO bapiaddr3.
+  REFRESH wt_return.
+*                                 /- search for the userid
+  CALL FUNCTION 'SUSR_USER_BNAME_FROM_ALIAS'
+       EXPORTING
+            alias = zzvsu_0200-useralias
+       IMPORTING
+            bname = bapibname-bapibname.
+  REFRESH wt_return.
+  MOVE 'X'      TO bapipwdx-bapipwd.
+  MOVE wc_fstpw TO bapipwd.
+*                                 /- create the Internet user
+  CALL FUNCTION 'BAPI_USER_CHANGE'
+       EXPORTING
+            username  = bapibname-bapibname
+            password  = bapipwd
+            passwordx = bapipwdx
+       TABLES
+            return    = wt_return.
+  CLEAR wf_error.
+  LOOP AT wt_return.
+    IF wt_return-type CO 'EA'.
+      MESSAGE ID wt_return-id
+              TYPE wt_return-type
+              NUMBER wt_return-number
+              WITH wt_return-message_v1
+                   wt_return-message_v2
+                   wt_return-message_v3
+                   wt_return-message_v4.
+      wf_error = 'X'.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+  IF wf_error IS INITIAL.
+*                                 /- set the password
+    CALL FUNCTION 'SUSR_USER_CHANGE_PASSWORD_RFC'
+         EXPORTING
+              bname                = bapibname-bapibname
+              password             = wc_fstpw
+              new_password         = zzvsu_0200-password
+         EXCEPTIONS
+              change_not_allowed   = 1
+              password_not_allowed = 2
+              internal_error       = 3
+              canceled_by_user     = 4
+              OTHERS               = 5.
+    IF sy-subrc <> 0.
+      CASE sy-subrc.
+        WHEN 1.
+          MESSAGE e915(zi).
+        WHEN 2.
+          MESSAGE e909(zi).
+        WHEN OTHERS.
+          MESSAGE e910(zi).
+      ENDCASE.
+    ELSE.
+      PERFORM reset_password_time USING bapibname-bapibname.
+      MESSAGE s912(zi) WITH zzvsu_0200-useralias.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " change_password
+*&---------------------------------------------------------------------*
+*&      Module  CHECK_ALIAS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE check_alias INPUT.
+  CHECK wc_opera = 'CHAN' OR
+        wc_opera = 'CREA'.
+*                                 /- search for the userid
+  CALL FUNCTION 'SUSR_USER_BNAME_FROM_ALIAS'
+       EXPORTING
+            alias          = zzvsu_0200-useralias
+       IMPORTING
+            bname          = bapibname-bapibname
+       EXCEPTIONS
+            no_bname_found = 1.
+*                                 /- another user exists for alias
+  IF sy-subrc = 0 AND
+     bapibname-bapibname <> zzvsu_0100-bname.
+    MESSAGE e914(zi) WITH bapibname-bapibname.
+  ENDIF.
+ENDMODULE.                 " CHECK_ALIAS  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  call_change_screen
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM call_change_screen.
+  PERFORM user_enqueue USING zzvsu_0100-bname w$_subrc.
+  IF w$_subrc = 0.
+    wc_opera = 'CHAN'.
+    CLEAR zzvsu_0200.
+    MOVE zzvsu_0100-useralias TO zzvsu_0200-useralias.
+    PERFORM read_internet_user_data.
+    PERFORM logged_user_get_detail.
+    PERFORM merge_roles.
+    REFRESH wt_newro.
+    PERFORM set_tc_attributes.
+    SET SCREEN 200.
+  ELSE.
+    MESSAGE e913(zi) WITH zzvsu_0200-useralias.
+  ENDIF.
+ENDFORM.                    " call_change_screen
+*&---------------------------------------------------------------------*
+*&      Form  display_role_details
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display_role_details.
+  GET CURSOR FIELD wc_field LINE wn_line.
+  CHECK sy-stepl = wn_line AND
+        wc_field = 'WT_ROLES-AGR_TEXT'.
+  CLEAR agr_prof.
+  SELECT        * FROM  agr_prof CLIENT SPECIFIED
+         WHERE  mandt     = sy-mandt
+         AND    agr_name  = wt_roles-agr_name.
+    EXIT.
+  ENDSELECT.
+*
+  CALL FUNCTION 'SUSR_PROF_DISPLAY_WITH_AUTHS'
+       EXPORTING
+            profile         = agr_prof-profile
+            p_state         = 'A'
+       EXCEPTIONS
+            prof_dont_exist = 1
+            OTHERS          = 2.
+  IF sy-subrc <> 0.
+    MESSAGE s916(zi) WITH agr_prof-profile.
+  ENDIF.
+
+ENDFORM.                    " display_role_details
+*&---------------------------------------------------------------------*
+*&      Form  set_tc_attributes
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM set_tc_attributes.
+  cg_zzvsup-fixed_cols    = 1.         " # of immovable cols (left)
+  CLEAR wb_lines.
+  DESCRIBE TABLE wt_zzvsup LINES wb_lines.
+  cg_zzvsup-lines         = wb_lines.  " # of displayable rows (lines)
+  cg_zzvsup-top_line      = 1.         " 1st table row displayed
+  cg_zzvsup-current_line  = 1.         " row currently processed (loop)
+  cg_zzvsup-left_col      = 1.         " first scrollable column
+  cg_zzvsup-line_sel_mode = 2.         " enable line selection 0,1,2
+  cg_zzvsup-col_sel_mode  = 0.         " enable column selection 0,1,2
+  cg_zzvsup-line_selector = 'X'.       " line selection indicator 'X'
+  cg_zzvsup-h_grid        = 'X'.       " horizontal gridlines
+  cg_zzvsup-v_grid        = 'X'.       " vertical gridlines
+*G_T001-COLS          = WG_COLS.
+  CLEAR wb_lines.
+  DESCRIBE TABLE wt_roles LINES wb_lines.
+  cg_roles-lines         = wb_lines.   " # of displayable rows (lines)
+  cg_roles-fixed_cols    = 1.          " # of immovable cols (left)
+  cg_roles-top_line      = 1.          " 1st table row displayed
+  cg_roles-current_line  = 1.          " row currently processed (loop)
+  cg_roles-left_col      = 1.          " first scrollable column
+  cg_roles-line_sel_mode = 2.          " enable line selection 0,1,2
+  cg_roles-col_sel_mode  = 0.          " enable column selection 0,1,2
+  cg_roles-line_selector = 'X'.        " line selection indicator 'X'
+  cg_roles-h_grid        = 'X'.        " horizontal gridlines
+  cg_roles-v_grid        = 'X'.        " vertical gridlines
+*G_T001-COLS          = WG_COLS.
+*
+ENDFORM.                    " set_tc_attributes
+*&---------------------------------------------------------------------*
+*&      Form  internet_user_unlock
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM internet_user_unlock.
+  CALL FUNCTION 'BAPI_USER_UNLOCK'
+       EXPORTING
+            username = zzvsu_0100-bname
+       TABLES
+            return   = wt_return.
+  CLEAR wf_error.
+  LOOP AT wt_return.
+    IF wt_return-type = 'S'.
+      MESSAGE s932(zi) WITH zzvsu_0200-useralias.
+    ELSEIF wt_return-type CO 'EA'.
+      MESSAGE ID wt_return-id
+            TYPE wt_return-type
+            NUMBER wt_return-number
+            WITH wt_return-message_v1
+                 wt_return-message_v2
+                 wt_return-message_v3
+                 wt_return-message_v4.
+      wf_error = 'X'.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+*                                 /- userid valid until...
+  CLEAR bapilogonx.
+  MOVE 'X' TO bapilogonx-gltgb.
+  CLEAR bapilogond.
+  MOVE '99991231' TO bapilogond-gltgb.
+*                                 /- change Internet user
+  CALL FUNCTION 'BAPI_USER_CHANGE'
+       EXPORTING
+            username   = zzvsu_0100-bname
+            logondata  = bapilogond
+            logondatax = bapilogonx
+       TABLES
+            return     = wt_return.
+  CLEAR wf_error.
+  LOOP AT wt_return.
+    IF wt_return-type CO 'EA'.
+      MESSAGE ID wt_return-id
+              TYPE wt_return-type
+              NUMBER wt_return-number
+              WITH wt_return-message_v1
+                   wt_return-message_v2
+                   wt_return-message_v3
+                   wt_return-message_v4.
+      wf_error = 'X'.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.                    " internet_user_unlock
+*&---------------------------------------------------------------------*
+*&      Form  internet_user_lock
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM internet_user_lock.
+*                                 /- userid valid until...
+  CLEAR bapilogonx.
+  MOVE 'X' TO bapilogonx-gltgb.
+  CLEAR bapilogond.
+  MOVE sy-datum TO bapilogond-gltgb.
+  SUBTRACT 1 FROM bapilogond-gltgb.
+*                                 /- change Internet user
+  CALL FUNCTION 'BAPI_USER_CHANGE'
+       EXPORTING
+            username   = zzvsu_0100-bname
+            logondata  = bapilogond
+            logondatax = bapilogonx
+       TABLES
+            return     = wt_return.
+  CLEAR wf_error.
+  LOOP AT wt_return.
+    IF wt_return-type CO 'EA'.
+      MESSAGE ID wt_return-id
+              TYPE wt_return-type
+              NUMBER wt_return-number
+              WITH wt_return-message_v1
+                   wt_return-message_v2
+                   wt_return-message_v3
+                   wt_return-message_v4.
+      wf_error = 'X'.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+  IF wf_error IS INITIAL.
+    MESSAGE s931(zi) WITH zzvsu_0200-useralias.
+  ENDIF.
+ENDFORM.                    " internet_user_lock
+*&---------------------------------------------------------------------*
+*&      Form  reset_password_time
+*&---------------------------------------------------------------------*
+*       Reset password time in order to be able to change password
+*       more than once a day
+*----------------------------------------------------------------------*
+FORM reset_password_time USING value(p_bname).
+  CLEAR usr02.
+  SELECT SINGLE * FROM  usr02 CLIENT SPECIFIED
+         WHERE  mandt  = '001'
+*        WHERE  mandt  = sy-mandt
+         AND    bname  = p_bname.
+  IF sy-subrc = 0.
+    usr02-bcda1 = sy-datum - 1.
+    UPDATE usr02.
+  ENDIF.
+ENDFORM.                    " reset_password_time
+*-------------
+FORM init_html.
+*-------------
+  IF b_control_framework_init IS INITIAL.
+    CALL FUNCTION 'CONTROL_INIT'
+         EXCEPTIONS
+              OTHERS = 4.
+    CHECK sy-subrc IS INITIAL.
+    b_control_framework_init = const_x.
+  ENDIF.
+  CLEAR sy-subrc.
+  IF b_html_control_init IS INITIAL.
+    prog_repid = sy-repid.
+    CALL FUNCTION 'HTMLCNTL_CREATE'
+         EXPORTING
+              owner_repid = prog_repid
+              parentid    = dynpro_0
+              link_repid  = prog_repid
+              dynnr       = sy-dynnr
+         CHANGING
+              handle      = h_html_control
+         EXCEPTIONS
+*               control_install_error = 1
+*               create_error          = 2
+              OTHERS                = 3.
+    CHECK sy-subrc IS INITIAL.
+    b_html_control_init = const_x.
+    html_control_align = align_at_right + align_at_bottom.
+*                                 /- détermine la taille et la place de
+*                                    la denêtre qui va contenir la page
+*                                    HTML
+    CALL FUNCTION 'HTMLCNTL_INIT'
+         EXPORTING
+              h_control                  = h_html_control
+              left                       = 1
+              top                        = 3
+              width                      = 130
+              height                     = 036
+*             metric                     = cntl_metric_dynpro
+*              ALIGN                      = HTML_CONTROL_ALIGN
+              register_event_on_navigate = const_x
+*             NO_FLUSH                   = 'X'
+         EXCEPTIONS
+*              cntl_system_error          = 1
+*              cntl_error                 = 2
+*              dp_create_error            = 3
+*              dp_install_error           = 4
+*              dp_error                   = 5
+              OTHERS                     = 6.
+  ENDIF.
+*
+ENDFORM.                               " INIT_HTML
+*---------------------------------------------------------------------*
+*       FORM LOAD_GRAPHICS_ENTRY                                      *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM load_graphics_entry.
+*                                 /- les objets doivent être chargés via
+*                                    la transaction SMW0 (binary data)
+*                                    mimetype = image/gif
+*                                    Dans cet exemple le nom utilisé
+*                                    pour atteindre ce GIF dans une page
+*                                    HTML sera support.gif
+*                                    Ex.: <body background="support.gif"
+  CALL FUNCTION 'HTMLCNTL_LOAD_MIME_OBJECT'
+       EXPORTING
+            h_control  = h_html_control
+            object_id  = 'ZPVSU_CUSTOMERS_EXTRANET'
+            object_url = 'support.gif'
+       EXCEPTIONS
+            OTHERS     = 1.
+*
+ENDFORM.                               " LOAD_GRAPHICS_ENTRY
+*---------------------------------------------------------------------*
+*       FORM LOAD_HOME_PAGE_ENTRY                                     *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM load_home_page_entry.
+  DATA: doc_url(80).
+*
+  CALL FUNCTION 'HTMLCNTL_LOAD_HTML_DOCUMENT'
+       EXPORTING
+            h_control    = h_html_control
+            document_id  = 'ZPVSU_CUSTOMERS_EXTRANET'
+       IMPORTING
+            assigned_url = doc_url
+       EXCEPTIONS
+            OTHERS       = 1.
+  CHECK sy-subrc IS INITIAL.
+*
+  CALL FUNCTION 'HTMLCNTL_SHOW_DATA'
+       EXPORTING
+            h_control = h_html_control
+            url       = doc_url.
+*
+ENDFORM.                               " LOAD_HOME_PAGE_ENTRY
+*
+*-------------
+FORM exit_html.
+*-------------
+  IF NOT b_html_control_init IS INITIAL.
+    CALL FUNCTION 'HTMLCNTL_DESTROY'
+         CHANGING
+              h_control = h_html_control
+         EXCEPTIONS
+              OTHERS    = 1.
+  ENDIF.
+  IF NOT b_control_framework_init IS INITIAL.
+    CALL FUNCTION 'CONTROL_EXIT'.
+  ENDIF.
+
+ENDFORM.                               " EXIT_HTML
+*&---------------------------------------------------------------------*
+*&      Module  CHECK_EMAIL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE check_email INPUT.
+  CHECK wc_opera = 'CHAN' OR
+        wc_opera = 'CREA'.
+*                                 /- the email address must be valid
+  IF NOT ( zzvsu_0200-e_mail CS '@' AND
+           zzvsu_0200-e_mail CS '.' ).
+    MESSAGE e929(zi) WITH zzvsu_0200-e_mail.
+  ENDIF.
+ENDMODULE.                 " CHECK_EMAIL  INPUT

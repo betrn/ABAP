@@ -5,14 +5,13 @@
 *&                                                                     *
 *&                                                                     *
 *&---------------------------------------------------------------------*
-REPORT  ZYTRN_HTML_MINI        .
+REPORT  ZYTRN_DEMO_HTML_VIEWER        .
 *                                 /- objects definition
 DATA: container   TYPE REF TO cl_gui_custom_container,
       html_viewer TYPE REF TO cl_gui_html_viewer.
 *
 DATA: init,
-*     url(255) VALUE 'FILE:c:\login.log',
-      url(255) VALUE 'HTTP://www.google.com',
+      url(255) VALUE 'HTTP://swing.solvay.com',
       frame(255).
 *
 SET SCREEN 100.
@@ -22,12 +21,12 @@ SET SCREEN 100.
 *       text
 *----------------------------------------------------------------------*
 MODULE status_0100 OUTPUT.
-*  SET PF-STATUS 'STATUS'.
-*  IF init is initial.
-*    init = 'X'.
+  SET PF-STATUS 'STATUS'.
+  IF init is initial.
+    init = 'X'.
 *                                 /- instances
     CREATE OBJECT container
-            EXPORTING container_name = 'IMAGE_CONTAINER'.
+            EXPORTING container_name = 'CUSTOM'.
     CREATE OBJECT html_viewer
             EXPORTING  parent              = container
             EXCEPTIONS cntl_error         = 1
@@ -43,7 +42,7 @@ MODULE status_0100 OUTPUT.
                 EXPORTING url   = url
                           frame = frame
                 EXCEPTIONS cntl_error = 1.
-*  ENDIF.
+  ENDIF.
 ENDMODULE.                             " STATUS_0100  OUTPUT
 *&---------------------------------------------------------------------*
 *&      Module  USER_COMMAND_0100  INPUT
@@ -51,11 +50,11 @@ ENDMODULE.                             " STATUS_0100  OUTPUT
 *       text
 *----------------------------------------------------------------------*
 MODULE user_command_0100 INPUT.
-*  case sy-ucomm.
-*     WHEN 'GO_BACK'.
-*       CALL METHOD html_viewer->go_back
-*                 EXCEPTIONS cntl_error = 1.
-*  endcase.
+  case sy-ucomm.
+     WHEN 'GO_BACK'.
+       CALL METHOD html_viewer->go_back
+                 EXCEPTIONS cntl_error = 1.
+  endcase.
 ENDMODULE.                             " USER_COMMAND_0100  INPUT
 *&---------------------------------------------------------------------*
 *&      Module  EXIT  INPUT
@@ -63,9 +62,9 @@ ENDMODULE.                             " USER_COMMAND_0100  INPUT
 *       text
 *----------------------------------------------------------------------*
 MODULE exit INPUT.
-*  CALL METHOD html_viewer->free.
-*  CALL METHOD container->free.
-*  FREE html_viewer.
-*  FREE container.
-*  LEAVE PROGRAM.
+  CALL METHOD html_viewer->free.
+  CALL METHOD container->free.
+  FREE html_viewer.
+  FREE container.
+  LEAVE PROGRAM.
 ENDMODULE.                             " EXIT  INPUT
