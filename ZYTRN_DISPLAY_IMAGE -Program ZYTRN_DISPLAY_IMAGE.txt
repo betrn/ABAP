@@ -1,0 +1,39 @@
+*&---------------------------------------------------------------------*
+*& Report  ZYTRN_DISPLAY_IMAGE                                         *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZYTRN_DISPLAY_IMAGE           .
+
+*data: IMAGE TYPE REF TO  CL_GUI_PICTURE.
+data : IMAGE TYPE REF TO CL_GUI_CONTAINER.
+*DATA: container   TYPE REF TO cl_gui_custom_container.
+DATA CONTAINER TYPE REF TO CL_GUI_CUSTOM_CONTAINER.
+DATA PICTURE   TYPE REF TO CL_GUI_PICTURE.
+
+
+call screen 100.
+
+form control_createimagecontrol.
+  CALL FUNCTION 'WB_BITMAP_SHOW'
+       EXPORTING
+           IMAGE_NAME       =  'ZBBP'
+*          image_name       =  'WB_BACKGROUND1'
+           CONTAINER        = 'IMAGE'
+*          PARENT           = '0<>'
+           STRETCH_PICTURE  = 'X'
+         IMPORTING
+              IMAGE_CONTROL    = PICTURE
+              CUSTOM_CONTAINER = CONTAINER.
+endform.                               " CONTROL_CREATE_IMAGE
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module STATUS_0100 output.
+perform control_createimagecontrol.
+endmodule.                 " STATUS_0100  OUTPUT
